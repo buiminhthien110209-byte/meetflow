@@ -287,11 +287,12 @@ a {
 
 .landing-page {
   overflow-y: auto;
-  background: url('/images/background.jpg') no-repeat center center fixed;
-  background-size: cover;
+  background: #f0f3ff;
   position: relative;
+  min-height: 100vh;
 }
 
+/* Hình nền cố định bằng GPU layer mượt mà, không giật lag khi cuộn */
 .landing-page::before {
   content: '';
   position: fixed;
@@ -299,11 +300,12 @@ a {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(240, 245, 255, 0.3);
-  backdrop-filter: blur(1.5px);
-  -webkit-backdrop-filter: blur(1.5px);
+  background: url('/images/background.jpg') no-repeat center center;
+  background-size: cover;
   pointer-events: none;
   z-index: 0;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .landing-container {
@@ -378,13 +380,6 @@ a {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  background-size: 200% auto;
-  animation: gradient-shift 4s ease-in-out infinite;
-}
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% center; }
-  50% { background-position: 100% center; }
 }
 
 .hero-subtitle {
@@ -395,7 +390,7 @@ a {
   margin: 0 auto;
 }
 
-/* Action Cards */
+/* Action Cards - Siêu mượt, loại bỏ các lớp tính toán GPU nặng */
 .action-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -405,56 +400,25 @@ a {
 }
 
 .action-card {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: #ffffff;
+  border: 1px solid rgba(220, 228, 255, 0.95);
   border-radius: var(--radius-xl);
   padding: 36px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  transition: var(--transition);
-  box-shadow: 0 16px 40px rgba(91, 140, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 10px 30px rgba(91, 140, 255, 0.12), 0 2px 6px rgba(0, 0, 0, 0.03);
   position: relative;
   overflow: hidden;
-}
-
-/* Gradient border on hover */
-.action-card::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: var(--accent-gradient);
-  border-radius: calc(var(--radius-xl) + 2px);
-  z-index: -1;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-
-.action-card::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: var(--radius-xl);
-  z-index: -1;
-}
-
-.action-card:hover::before {
-  opacity: 1;
+  transform: translateZ(0);
 }
 
 .action-card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(91, 140, 255, 0.2);
+  border-color: var(--accent-purple);
 }
 
 .card-icon {
@@ -512,13 +476,11 @@ a {
   font-size: 14px;
   font-weight: 600;
   padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #ffffff;
   border-radius: 100px;
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 16px rgba(91, 140, 255, 0.1);
-  transition: var(--transition);
+  border: 1px solid rgba(220, 228, 255, 0.95);
+  box-shadow: 0 4px 16px rgba(91, 140, 255, 0.08);
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .feature:hover {
@@ -658,10 +620,9 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 10px 24px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: #ffffff;
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
   z-index: 10;
   flex-shrink: 0;
 }
@@ -1052,10 +1013,9 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 14px 28px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: #ffffff;
   border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
   z-index: 10;
 }

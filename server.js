@@ -10,8 +10,11 @@ const io = new Server(server, {
   cors: { origin: '*' }
 });
 
-// Phục vụ file tĩnh
-app.use(express.static(path.join(__dirname, 'public')));
+// Phục vụ file tĩnh có bộ nhớ đệm (Cache) để tải siêu tốc
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d',
+  etag: true
+}));
 app.use(express.json());
 
 // Quản lý phòng: roomId -> { hostSocketId, hostUsername }
