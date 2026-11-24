@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetFlow — Video Call Miễn Phí</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎥</text></svg>">
+</head>
+<body class="landing-page">
+
+  <!-- Background effects -->
+  <div class="bg-effects">
+    <div class="bg-mesh"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+  </div>
+
+  <div class="landing-container">
+    <!-- Header -->
+    <header class="landing-header">
+      <div class="logo">
+        <i class="fas fa-video logo-icon"></i>
+        <span class="logo-text">MeetFlow</span>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <main class="landing-main">
+      <div class="hero">
+        <h1 class="hero-title">
+          Video Call<br>
+          <span class="gradient-text">Không Giới Hạn</span>
+        </h1>
+        <p class="hero-subtitle">
+          Kết nối liền mạch, miễn phí, không cần đăng ký.<br>
+          Tạo phòng họp trong 1 giây.
+        </p>
+      </div>
+
+      <!-- Action Cards -->
+      <div class="action-cards">
+        <!-- Tạo phòng -->
+        <div class="action-card">
+          <div class="card-icon">
+            <i class="fas fa-plus-circle"></i>
+          </div>
+          <h2>Tạo phòng mới</h2>
+          <p>Bắt đầu cuộc họp và mời người khác tham gia</p>
+          <div class="input-group">
+            <input 
+              type="text" 
+              id="create-name" 
+              placeholder="Tên của bạn" 
+              class="input-field"
+              maxlength="30"
+            >
+          </div>
+          <button id="btn-create" class="btn btn-primary" onclick="createRoom()">
+            <i class="fas fa-video"></i>
+            Tạo phòng
+          </button>
+        </div>
+
+        <!-- Tham gia -->
+        <div class="action-card">
+          <div class="card-icon join">
+            <i class="fas fa-sign-in-alt"></i>
+          </div>
+          <h2>Tham gia phòng</h2>
+          <p>Nhập mã phòng để vào cuộc họp đang diễn ra</p>
+          <div class="input-group">
+            <input 
+              type="text" 
+              id="join-name" 
+              placeholder="Tên của bạn" 
+              class="input-field"
+              maxlength="30"
+            >
+          </div>
+          <div class="input-group">
+            <input 
+              type="text" 
+              id="join-code" 
+              placeholder="Mã phòng (vd: a1b2c3d4)" 
+              class="input-field"
+              maxlength="8"
+            >
+          </div>
+          <button id="btn-join" class="btn btn-secondary" onclick="joinRoom()">
+            <i class="fas fa-sign-in-alt"></i>
+            Tham gia
+          </button>
+        </div>
+      </div>
+
+      <!-- Features -->
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-shield-alt"></i>
+          <span>Peer-to-Peer an toàn</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-bolt"></i>
+          <span>Kết nối tức thì</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-desktop"></i>
+          <span>Chia sẻ màn hình</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-comments"></i>
+          <span>Chat trong phòng</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <p>MeetFlow — Dự án học tập WebRTC & Realtime Communication</p>
+    </footer>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

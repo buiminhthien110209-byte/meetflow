@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetFlow — Phòng họp</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎥</text></svg>">
+</head>
+<body class="room-page">
+
+  <!-- Join Modal -->
+  <div class="modal-overlay" id="join-modal">
+    <div class="modal">
+      <div class="modal-logo">
+        <i class="fas fa-video"></i>
+        <span>MeetFlow</span>
+      </div>
+      <h2>Tham gia phòng họp</h2>
+      <p class="modal-room-id">Phòng: <strong id="modal-room-id"></strong></p>
+      <div class="input-group">
+        <input 
+          type="text" 
+          id="modal-name-input" 
+          placeholder="Nhập tên của bạn" 
+          class="input-field"
+          maxlength="30"
+          autofocus
+        >
+      </div>
+      <button class="btn btn-primary" onclick="joinCall()">
+        <i class="fas fa-video"></i>
+        Vào phòng
+      </button>
+    </div>
+  </div>
+
+  <!-- Room Container -->
+  <div class="room-container" id="room-container" style="display: none;">
+    
+    <!-- Header -->
+    <header class="room-header">
+      <div class="header-left">
+        <div class="logo-small">
+          <i class="fas fa-video"></i>
+          <span>MeetFlow</span>
+        </div>
+        <div class="room-badge">
+          <i class="fas fa-hashtag"></i>
+          <span id="room-id-display"></span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="participant-badge">
+          <i class="fas fa-users"></i>
+          <span id="participant-count">1</span>
+        </div>
+        <div class="timer-badge">
+          <i class="fas fa-clock"></i>
+          <span id="call-timer">00:00</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Area -->
+    <main class="room-main">
+      <!-- Video Grid -->
+      <div class="video-grid" id="video-grid">
+        <div class="video-container local" id="local-container">
+          <video id="local-video" autoplay muted playsinline></video>
+          <div class="video-name-tag">
+            <span id="local-name-tag">Bạn</span>
+          </div>
+          <div class="video-no-cam" id="local-no-cam" style="display: none;">
+            <div class="avatar" id="local-avatar">?</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Panel -->
+      <aside class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+          <h3><i class="fas fa-comments"></i> Tin nhắn</h3>
+          <button class="btn-icon" onclick="toggleChat()" title="Đóng chat">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-empty">
+            <i class="fas fa-comments"></i>
+            <p>Chưa có tin nhắn</p>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <input 
+            type="text" 
+            id="chat-input" 
+            placeholder="Nhập tin nhắn..." 
+            class="chat-input-field"
+            maxlength="500"
+          >
+          <button class="btn-send" onclick="sendMessage()" title="Gửi">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Controls -->
+    <footer class="controls-bar">
+      <div class="controls-left">
+        <span class="controls-info" id="username-display"></span>
+      </div>
+      <div class="controls-center">
+        <button id="btn-mic" class="control-btn active" onclick="toggleMute()" title="Tắt/Bật micro">
+          <i class="fas fa-microphone"></i>
+        </button>
+        <button id="btn-camera" class="control-btn active" onclick="toggleCamera()" title="Tắt/Bật camera">
+          <i class="fas fa-video"></i>
+        </button>
+        <button id="btn-screen" class="control-btn" onclick="toggleScreenShare()" title="Chia sẻ màn hình">
+          <i class="fas fa-desktop"></i>
+        </button>
+        <button id="btn-chat" class="control-btn" onclick="toggleChat()" title="Chat">
+          <i class="fas fa-comments"></i>
+          <span class="badge" id="chat-badge" style="display: none;">0</span>
+        </button>
+        <button id="btn-copy" class="control-btn" onclick="copyRoomLink()" title="Copy link phòng">
+          <i class="fas fa-link"></i>
+        </button>
+        <button class="control-btn leave" onclick="leaveRoom()" title="Rời phòng">
+          <i class="fas fa-phone-slash"></i>
+        </button>
+      </div>
+      <div class="controls-right"></div>
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/room.js"></script>
+</body>
+</html>
