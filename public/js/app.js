@@ -22,8 +22,9 @@ async function createRoom() {
     const res = await fetch('/api/room/create', { method: 'POST' });
     const data = await res.json();
 
-    // Lưu tên vào sessionStorage
+    // Lưu tên và đánh dấu là người tạo lớp học (Chủ phòng)
     sessionStorage.setItem('meetflow-username', name);
+    sessionStorage.setItem('meetflow-is-creator', 'true');
 
     // Chuyển đến phòng
     window.location.href = `/room/${data.roomId}`;
@@ -56,8 +57,9 @@ function joinRoom() {
     return;
   }
 
-  // Lưu tên vào sessionStorage
+  // Lưu tên vào sessionStorage (người tham gia thường)
   sessionStorage.setItem('meetflow-username', name);
+  sessionStorage.setItem('meetflow-is-creator', 'false');
 
   // Chuyển đến phòng
   window.location.href = `/room/${code}`;

@@ -1,6 +1,5 @@
 // =========================================
-// MeetFlow - Room Logic (WebRTC + UI)
-// Fixed: Screen share, lag, TURN servers
+// MeetFlow - Room Logic (WebRTC + UI + Host Role)
 // =========================================
 
 // ---- Biến toàn cục ----
@@ -9,7 +8,8 @@ let localStream = null;
 let screenStream = null;
 let socket = null;
 let username = '';
-let peers = {}; // { peerId: { pc: RTCPeerConnection, username: string } }
+let isHost = false;
+let peers = {}; // { peerId: { pc: RTCPeerConnection, username: string, isHost: boolean } }
 
 // Trạng thái UI
 let isMuted = false;
@@ -26,7 +26,6 @@ const rtcConfig = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    // TURN servers miễn phí (cần thiết để kết nối qua mạng khác nhau)
     {
       urls: 'turn:openrelay.metered.ca:80',
       username: 'openrelayproject',
@@ -51,21 +50,17 @@ const rtcConfig = {
 // =========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Hiển thị room ID trên modal
   document.getElementById('modal-room-id').textContent = roomId;
 
-  // Kiểm tra nếu đã có tên từ landing page
   const savedName = sessionStorage.getItem('meetflow-username');
   if (savedName) {
     document.getElementById('modal-name-input').value = savedName;
   }
 
-  // Enter key trên modal
   document.getElementById('modal-name-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') joinCall();
   });
 
-  // Enter key trên chat
   document.getElementById('chat-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
   });
@@ -80,23 +75,22 @@ async function joinCall() {
   document.getElementById('join-modal').classList.add('hidden');
   document.getElementById('room-container').style.display = 'flex';
 
-  // Cập nhật UI
+  // Cập nhật UI cơ bản
   document.getElementById('room-id-display').textContent = roomId;
   document.getElementById('username-display').textContent = username;
   document.getElementById('local-name-tag').textContent = username + ' (Bạn)';
   document.getElementById('local-avatar').textContent = username.charAt(0).toUpperCase();
 
-  // Bắt đầu timer
   startTimer();
 
-  // Lấy camera & micro
+  // Khởi tạo micro + camera
   await initMedia();
 
   // Kết nối Socket.IO
   connectSocket();
 }
 
-// Lấy camera và microphone - GIẢM CHẤT LƯỢNG để tránh lag
+// Lấy camera và microphone tối ưu chống giật lag
 async function initMedia() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -117,7 +111,6 @@ async function initMedia() {
     document.getElementById('local-no-cam').style.display = 'none';
   } catch (err) {
     console.warn('Không thể truy cập camera/mic:', err);
-    // Thử chỉ audio
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       showLocalNoCam();
@@ -147,32 +140,57 @@ function connectSocket() {
 
   socket.on('connect', () => {
     console.log('🔌 Đã kết nối Socket.IO:', socket.id);
-    socket.emit('join-room', { roomId, username });
+    const isCreator = sessionStorage.getItem('meetflow-is-creator') === 'true';
+    socket.emit('join-room', { roomId, username, isCreator });
+  });
+
+  // Nhận chỉ định vai trò từ server (Chủ phòng / Học viên)
+  socket.on('role-assignment', (data) => {
+    isHost = data.isHost;
+    console.log(`👑 Vai trò của bạn: ${isHost ? 'Chủ phòng (Người tạo lớp)' : 'Học viên'}`);
+
+    if (isHost) {
+      const roleBadge = document.getElementById('role-badge');
+      if (roleBadge) roleBadge.style.display = 'flex';
+
+      const leaveBtn = document.getElementById('btn-leave');
+      if (leaveBtn) {
+        leaveBtn.title = 'Kết thúc lớp học (Đóng phòng cho tất cả học viên)';
+      }
+
+      document.getElementById('local-name-tag').innerHTML = `👑 ${escapeHtml(username)} (Chủ phòng)`;
+      showToast('👑 Bạn là người tạo lớp học');
+    }
+  });
+
+  // Sự kiện khi phòng bị giải tán (Chủ phòng thoát)
+  socket.on('room-ended', ({ message }) => {
+    console.log('🛑 Nhận thông báo phòng kết thúc:', message);
+    handleRoomTerminated(message);
   });
 
   // Nhận danh sách user đã có trong phòng
   socket.on('existing-users', (users) => {
     console.log('👥 Người đang trong phòng:', users);
     users.forEach(user => {
-      createPeerConnection(user.userId, user.username, true);
+      createPeerConnection(user.userId, user.username, user.isHost, true);
     });
     updateParticipantCount();
   });
 
   // Có người mới vào
-  socket.on('user-joined', ({ userId, username: peerName }) => {
+  socket.on('user-joined', ({ userId, username: peerName, isHost: peerIsHost }) => {
     console.log(`✅ ${peerName} đã vào phòng`);
-    createPeerConnection(userId, peerName, false);
-    addSystemMessage(`${peerName} đã tham gia phòng`);
+    createPeerConnection(userId, peerName, peerIsHost, false);
+    addSystemMessage(`${peerIsHost ? '👑 Chủ phòng' : 'Học viên'} ${peerName} đã tham gia`);
     updateParticipantCount();
     showToast(`👋 ${peerName} đã tham gia`);
   });
 
-  // Nhận offer từ peer khác
+  // Nhận offer
   socket.on('offer', async ({ from, offer, username: peerName }) => {
-    console.log(`📨 Nhận offer từ ${peerName}`);
     if (!peers[from]) {
-      createPeerConnection(from, peerName, false);
+      createPeerConnection(from, peerName, false, false);
     }
     try {
       await peers[from].pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -186,7 +204,6 @@ function connectSocket() {
 
   // Nhận answer
   socket.on('answer', async ({ from, answer }) => {
-    console.log(`📨 Nhận answer từ ${from}`);
     try {
       if (peers[from] && peers[from].pc.signalingState === 'have-local-offer') {
         await peers[from].pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -202,12 +219,10 @@ function connectSocket() {
       if (peers[from] && peers[from].pc.remoteDescription) {
         await peers[from].pc.addIceCandidate(new RTCIceCandidate(candidate));
       }
-    } catch (err) {
-      // Bỏ qua lỗi ICE candidate không quan trọng
-    }
+    } catch (err) {}
   });
 
-  // Có người rời phòng
+  // Có người rời phòng (học viên thường)
   socket.on('user-left', ({ userId, username: peerName }) => {
     console.log(`❌ ${peerName} đã rời phòng`);
     removePeer(userId);
@@ -217,40 +232,76 @@ function connectSocket() {
   });
 
   // Chat
-  socket.on('chat-message', ({ userId, username: senderName, message, timestamp }) => {
-    addChatMessage(senderName, message, timestamp, userId === socket.id);
+  socket.on('chat-message', ({ userId, username: senderName, isHost: msgIsHost, message, timestamp }) => {
+    addChatMessage(senderName, msgIsHost, message, timestamp, userId === socket.id);
   });
 
   socket.on('disconnect', () => {
-    console.log('🔌 Mất kết nối');
-    showToast('⚠️ Mất kết nối server...');
+    showToast('⚠️ Đang ngắt kết nối...');
   });
 
   socket.on('reconnect', () => {
     showToast('✅ Đã kết nối lại');
-    socket.emit('join-room', { roomId, username });
+    const isCreator = sessionStorage.getItem('meetflow-is-creator') === 'true';
+    socket.emit('join-room', { roomId, username, isCreator });
   });
+}
+
+// Xử lý khi phòng bị đóng bởi chủ phòng
+function handleRoomTerminated(reasonText) {
+  // Dừng toàn bộ camera, mic, chia sẻ màn hình ngay lập tức
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+  }
+  if (screenStream) {
+    screenStream.getTracks().forEach(t => t.stop());
+  }
+
+  // Đóng toàn bộ peer connection
+  Object.values(peers).forEach(({ pc }) => pc.close());
+  peers = {};
+
+  if (timerInterval) clearInterval(timerInterval);
+
+  // Hiển thị modal văng ra ngoài
+  const endedModal = document.getElementById('ended-modal');
+  const endedMsg = document.getElementById('ended-message');
+  if (endedMsg && reasonText) {
+    endedMsg.innerHTML = `${escapeHtml(reasonText)}<br><br>Bạn sẽ tự động văng về trang chủ trong <strong id="countdown-sec" style="color: #ff4757;">3</strong>s...`;
+  }
+  if (endedModal) {
+    endedModal.style.display = 'flex';
+  }
+
+  // Đếm ngược 3 giây rồi văng ra trang chủ
+  let count = 3;
+  const countEl = document.getElementById('countdown-sec');
+  const cdTimer = setInterval(() => {
+    count--;
+    if (countEl) countEl.textContent = count;
+    if (count <= 0) {
+      clearInterval(cdTimer);
+      window.location.href = '/';
+    }
+  }, 1000);
 }
 
 // =========================================
 // WebRTC - PEER CONNECTION
 // =========================================
 
-function createPeerConnection(peerId, peerUsername, isInitiator) {
-  console.log(`🔗 Tạo kết nối với ${peerUsername} (initiator: ${isInitiator})`);
-
+function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
   const pc = new RTCPeerConnection(rtcConfig);
-  peers[peerId] = { pc, username: peerUsername };
+  peers[peerId] = { pc, username: peerUsername, isHost: peerIsHost };
 
-  // ---- THÊM TRACKS ----
-  // Luôn thêm audio từ localStream
+  // Audio track
   if (localStream) {
     localStream.getAudioTracks().forEach(track => {
       pc.addTrack(track, localStream);
     });
   }
 
-  // Video: gửi screenStream nếu đang share, nếu không thì camera
+  // Video track (screen share hoặc camera)
   if (isScreenSharing && screenStream && screenStream.getVideoTracks().length > 0) {
     screenStream.getVideoTracks().forEach(track => {
       pc.addTrack(track, screenStream);
@@ -261,18 +312,15 @@ function createPeerConnection(peerId, peerUsername, isInitiator) {
     });
   }
 
-  // Khi nhận được media từ peer
+  // Khi nhận video từ peer
   pc.ontrack = (event) => {
-    console.log(`🎬 Nhận media từ ${peerUsername}, kind: ${event.track.kind}`);
     let videoEl = document.getElementById(`video-${peerId}`);
     if (!videoEl) {
-      videoEl = createVideoElement(peerId, peerUsername);
+      videoEl = createVideoElement(peerId, peerUsername, peerIsHost);
     }
-    // Gán stream vào video element
     if (event.streams && event.streams[0]) {
       videoEl.srcObject = event.streams[0];
     } else {
-      // Fallback: tạo stream mới từ track
       let stream = videoEl.srcObject;
       if (!stream) {
         stream = new MediaStream();
@@ -282,7 +330,6 @@ function createPeerConnection(peerId, peerUsername, isInitiator) {
     }
   };
 
-  // Gửi ICE candidate
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit('ice-candidate', {
@@ -292,14 +339,9 @@ function createPeerConnection(peerId, peerUsername, isInitiator) {
     }
   };
 
-  // Theo dõi trạng thái kết nối + tự reconnect
   pc.onconnectionstatechange = () => {
     const state = pc.connectionState;
-    console.log(`📡 Trạng thái với ${peerUsername}: ${state}`);
-
     if (state === 'failed') {
-      console.log('🔄 Thử kết nối lại...');
-      // ICE restart
       pc.createOffer({ iceRestart: true })
         .then(offer => pc.setLocalDescription(offer))
         .then(() => {
@@ -307,22 +349,11 @@ function createPeerConnection(peerId, peerUsername, isInitiator) {
         })
         .catch(err => console.error('ICE restart failed:', err));
     }
-
-    if (state === 'disconnected') {
-      showToast(`⚠️ Kết nối với ${peerUsername} không ổn định`);
-    }
-
     if (state === 'connected') {
-      // Giới hạn bandwidth sau khi kết nối
       limitBandwidth(pc);
     }
   };
 
-  pc.oniceconnectionstatechange = () => {
-    console.log(`🧊 ICE state với ${peerUsername}: ${pc.iceConnectionState}`);
-  };
-
-  // Nếu là người khởi tạo -> tạo offer
   if (isInitiator) {
     pc.createOffer({
       offerToReceiveAudio: true,
@@ -341,7 +372,7 @@ function createPeerConnection(peerId, peerUsername, isInitiator) {
   return pc;
 }
 
-// Giới hạn bandwidth để tránh lag
+// Giới hạn bandwidth tối ưu đường truyền
 async function limitBandwidth(pc) {
   try {
     const senders = pc.getSenders();
@@ -351,27 +382,19 @@ async function limitBandwidth(pc) {
       if (!params.encodings || params.encodings.length === 0) {
         params.encodings = [{}];
       }
-
       if (sender.track.kind === 'video') {
-        // Giới hạn video: 500kbps
         params.encodings[0].maxBitrate = 500000;
         params.encodings[0].maxFramerate = 24;
       } else if (sender.track.kind === 'audio') {
-        // Giới hạn audio: 64kbps
         params.encodings[0].maxBitrate = 64000;
       }
-
       await sender.setParameters(params);
     }
-    console.log('📊 Đã giới hạn bandwidth');
-  } catch (err) {
-    // Một số trình duyệt không hỗ trợ setParameters
-    console.warn('Không thể giới hạn bandwidth:', err);
-  }
+  } catch (err) {}
 }
 
 // Tạo phần tử video cho peer
-function createVideoElement(peerId, peerUsername) {
+function createVideoElement(peerId, peerUsername, peerIsHost) {
   const grid = document.getElementById('video-grid');
 
   const container = document.createElement('div');
@@ -385,9 +408,10 @@ function createVideoElement(peerId, peerUsername) {
 
   const nameTag = document.createElement('div');
   nameTag.className = 'video-name-tag';
-  nameTag.textContent = peerUsername;
+  nameTag.innerHTML = peerIsHost
+    ? `👑 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#ff9f43;">(Chủ phòng)</span>`
+    : escapeHtml(peerUsername);
 
-  // Avatar khi tắt cam
   const noCam = document.createElement('div');
   noCam.className = 'video-no-cam';
   noCam.id = `no-cam-${peerId}`;
@@ -406,7 +430,6 @@ function createVideoElement(peerId, peerUsername) {
   return video;
 }
 
-// Xóa peer khi rời phòng
 function removePeer(peerId) {
   if (peers[peerId]) {
     peers[peerId].pc.close();
@@ -423,10 +446,44 @@ function removePeer(peerId) {
 }
 
 // =========================================
-// ĐIỀU KHIỂN (Controls)
+// ĐIỀU KHIỂN & RỜI PHÒNG
 // =========================================
 
-// Tắt/Bật micro
+// Xử lý khi bấm nút Rời phòng / Kết thúc phòng
+function handleLeaveButtonClick() {
+  if (isHost) {
+    // Nếu là chủ phòng -> Hỏi xác nhận kết thúc lớp học
+    const confirmEnd = confirm(
+      "⚠️ BẠN LÀ NGƯỜI TẠO LỚP HỌC!\n\n" +
+      "Nếu bạn thoát, buổi học này sẽ KẾT THÚC và TẤT CẢ mọi người sẽ tự động bị văng ra ngoài.\n\n" +
+      "Bạn có chắc chắn muốn kết thúc lớp học không?"
+    );
+
+    if (confirmEnd) {
+      if (socket) {
+        socket.emit('end-room');
+      }
+      cleanupAndExit();
+    }
+  } else {
+    // Học viên thường rời phòng
+    const confirmLeave = confirm("Bạn có muốn rời khỏi lớp học này không?");
+    if (confirmLeave) {
+      cleanupAndExit();
+    }
+  }
+}
+
+function cleanupAndExit() {
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (screenStream) screenStream.getTracks().forEach(t => t.stop());
+  Object.values(peers).forEach(({ pc }) => pc.close());
+  peers = {};
+  if (socket) socket.disconnect();
+  if (timerInterval) clearInterval(timerInterval);
+  window.location.href = '/';
+}
+
 function toggleMute() {
   isMuted = !isMuted;
   localStream.getAudioTracks().forEach(track => {
@@ -444,7 +501,6 @@ function toggleMute() {
   }
 }
 
-// Tắt/Bật camera
 function toggleCamera() {
   isCameraOff = !isCameraOff;
   localStream.getVideoTracks().forEach(track => {
@@ -465,7 +521,6 @@ function toggleCamera() {
   }
 }
 
-// Chia sẻ màn hình - FIX: gửi đúng track cho tất cả peers
 async function toggleScreenShare() {
   if (!isScreenSharing) {
     try {
@@ -480,20 +535,15 @@ async function toggleScreenShare() {
       });
       const screenTrack = screenStream.getVideoTracks()[0];
 
-      // Thay thế video track trong TẤT CẢ peer connection
       for (const [peerId, { pc }] of Object.entries(peers)) {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) {
           try {
             await sender.replaceTrack(screenTrack);
-            console.log(`✅ Đã gửi screen share cho peer ${peerId}`);
-          } catch (err) {
-            console.error(`❌ Lỗi gửi screen share cho peer ${peerId}:`, err);
-          }
+          } catch (err) {}
         }
       }
 
-      // Hiển thị screen share trên local video
       document.getElementById('local-video').srcObject = screenStream;
       document.getElementById('local-no-cam').style.display = 'none';
       isScreenSharing = true;
@@ -501,9 +551,7 @@ async function toggleScreenShare() {
       document.getElementById('btn-screen').classList.add('sharing');
       showToast('🖥️ Đang chia sẻ màn hình');
 
-      // Khi người dùng dừng chia sẻ từ browser
       screenTrack.onended = () => stopScreenShare();
-
     } catch (err) {
       console.log('Hủy chia sẻ màn hình');
     }
@@ -517,15 +565,12 @@ async function stopScreenShare() {
 
   const videoTrack = localStream.getVideoTracks()[0];
 
-  // Trả lại camera track cho tất cả peers
   for (const [peerId, { pc }] of Object.entries(peers)) {
     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
     if (sender && videoTrack) {
       try {
         await sender.replaceTrack(videoTrack);
-      } catch (err) {
-        console.error(`Lỗi trả camera cho peer ${peerId}:`, err);
-      }
+      } catch (err) {}
     }
   }
 
@@ -544,7 +589,6 @@ async function stopScreenShare() {
   showToast('Đã dừng chia sẻ màn hình');
 }
 
-// Mở/Đóng chat
 function toggleChat() {
   isChatOpen = !isChatOpen;
   document.getElementById('chat-panel').classList.toggle('open', isChatOpen);
@@ -562,7 +606,6 @@ function toggleChat() {
   }
 }
 
-// Gửi tin nhắn
 function sendMessage() {
   const input = document.getElementById('chat-input');
   const message = input.value.trim();
@@ -573,7 +616,6 @@ function sendMessage() {
   input.focus();
 }
 
-// Copy link phòng
 function copyRoomLink() {
   navigator.clipboard.writeText(window.location.href).then(() => {
     const btn = document.getElementById('btn-copy');
@@ -587,25 +629,11 @@ function copyRoomLink() {
   });
 }
 
-// Rời phòng
-function leaveRoom() {
-  if (localStream) localStream.getTracks().forEach(t => t.stop());
-  if (screenStream) screenStream.getTracks().forEach(t => t.stop());
-
-  Object.values(peers).forEach(({ pc }) => pc.close());
-  peers = {};
-
-  if (socket) socket.disconnect();
-  if (timerInterval) clearInterval(timerInterval);
-
-  window.location.href = '/';
-}
-
 // =========================================
 // CHAT UI
 // =========================================
 
-function addChatMessage(name, message, timestamp, isMe) {
+function addChatMessage(name, msgIsHost, message, timestamp, isMe) {
   const empty = document.querySelector('.chat-empty');
   if (empty) empty.remove();
 
@@ -618,9 +646,13 @@ function addChatMessage(name, message, timestamp, isMe) {
     minute: '2-digit'
   });
 
+  const senderLabel = isMe
+    ? (isHost ? 'Bạn (👑 Chủ phòng)' : 'Bạn')
+    : (msgIsHost ? `👑 ${escapeHtml(name)}` : escapeHtml(name));
+
   div.innerHTML = `
     <div class="chat-message-header">
-      <span class="chat-name">${isMe ? 'Bạn' : escapeHtml(name)}</span>
+      <span class="chat-name">${senderLabel}</span>
       <span class="chat-time">${time}</span>
     </div>
     <div class="chat-text">${escapeHtml(message)}</div>
