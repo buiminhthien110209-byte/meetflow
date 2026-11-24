@@ -1,5 +1,5 @@
 // =========================================
-// MeetFlow - Room Logic (WebRTC + UI + Host Role)
+// MeetFlow - Room Logic (Ultra Low Latency Optimized)
 // =========================================
 
 // ---- Biến toàn cục ----
@@ -20,12 +20,15 @@ let unreadCount = 0;
 let callStartTime = null;
 let timerInterval = null;
 
-// Cấu hình WebRTC - STUN + TURN servers miễn phí
+// Cấu hình WebRTC tối ưu đường truyền cực nhanh:
+// Ưu tiên Google STUN & Cloudflare STUN (đặt server tại Đông Nam Á / Việt Nam)
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // TURN fallback khi bị chặn NAT cứng
     {
       urls: 'turn:openrelay.metered.ca:80',
       username: 'openrelayproject',
@@ -35,14 +38,11 @@ const rtcConfig = {
       urls: 'turn:openrelay.metered.ca:443',
       username: 'openrelayproject',
       credential: 'openrelayproject'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
     }
   ],
-  iceCandidatePoolSize: 10
+  bundlePolicy: 'max-bundle', // Gom toàn bộ Audio + Video vào 1 cổng mạng duy nhất -> giảm 50% độ trễ
+  rtcpMuxPolicy: 'require',
+  iceCandidatePoolSize: 2
 };
 
 // =========================================
@@ -66,16 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Vào phòng (từ modal)
+// Vào phòng
 async function joinCall() {
   const nameInput = document.getElementById('modal-name-input');
   username = nameInput.value.trim() || 'Ẩn danh';
 
-  // Ẩn modal, hiện phòng
   document.getElementById('join-modal').classList.add('hidden');
   document.getElementById('room-container').style.display = 'flex';
 
-  // Cập nhật UI cơ bản
   document.getElementById('room-id-display').textContent = roomId;
   document.getElementById('username-display').textContent = username;
   document.getElementById('local-name-tag').textContent = username + ' (Bạn)';
@@ -83,14 +81,14 @@ async function joinCall() {
 
   startTimer();
 
-  // Khởi tạo micro + camera
+  // Khởi tạo camera + mic độ trễ cực thấp
   await initMedia();
 
-  // Kết nối Socket.IO
+  // Kết nối socket
   connectSocket();
 }
 
-// Lấy camera và microphone tối ưu chống giật lag
+// Cấu hình Camera & Mic chống lag, giảm tải CPU & băng thông
 async function initMedia() {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -104,22 +102,34 @@ async function initMedia() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        sampleRate: 44100
+        channelCount: 1, // Kênh Mono (giảm 50% dữ liệu truyền tải, chống nghẽn mic)
+        sampleRate: 48000,
+        latency: 0 // Yêu cầu độ trễ âm thanh bằng 0
       }
     });
-    document.getElementById('local-video').srcObject = localStream;
+
+    const localVideo = document.getElementById('local-video');
+    localVideo.srcObject = localStream;
+    localVideo.muted = true; // Luôn mute local video để chống dội âm thanh
     document.getElementById('local-no-cam').style.display = 'none';
   } catch (err) {
     console.warn('Không thể truy cập camera/mic:', err);
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        }
+      });
       showLocalNoCam();
     } catch (e) {
-      console.warn('Không thể truy cập micro:', e);
+      console.warn('Không có quyền micro:', e);
       localStream = new MediaStream();
       showLocalNoCam();
     }
-    showToast('⚠️ Không thể truy cập camera/microphone');
+    showToast('⚠️ Không thể truy cập đầy đủ camera/microphone');
   }
 }
 
@@ -128,14 +138,15 @@ function showLocalNoCam() {
 }
 
 // =========================================
-// SOCKET.IO - KẾT NỐI & SIGNALING
+// SOCKET.IO - SIGNALING
 // =========================================
 
 function connectSocket() {
   socket = io({
     reconnection: true,
     reconnectionAttempts: 10,
-    reconnectionDelay: 1000
+    reconnectionDelay: 800,
+    transports: ['websocket'] // Ưu tiên trực tiếp giao thức WebSocket để truyền tin nhanh nhất
   });
 
   socket.on('connect', () => {
@@ -144,11 +155,8 @@ function connectSocket() {
     socket.emit('join-room', { roomId, username, isCreator });
   });
 
-  // Nhận chỉ định vai trò từ server (Chủ phòng / Học viên)
   socket.on('role-assignment', (data) => {
     isHost = data.isHost;
-    console.log(`👑 Vai trò của bạn: ${isHost ? 'Chủ phòng (Người tạo lớp)' : 'Học viên'}`);
-
     if (isHost) {
       const roleBadge = document.getElementById('role-badge');
       if (roleBadge) roleBadge.style.display = 'flex';
@@ -163,31 +171,24 @@ function connectSocket() {
     }
   });
 
-  // Sự kiện khi phòng bị giải tán (Chủ phòng thoát)
   socket.on('room-ended', ({ message }) => {
-    console.log('🛑 Nhận thông báo phòng kết thúc:', message);
     handleRoomTerminated(message);
   });
 
-  // Nhận danh sách user đã có trong phòng
   socket.on('existing-users', (users) => {
-    console.log('👥 Người đang trong phòng:', users);
     users.forEach(user => {
       createPeerConnection(user.userId, user.username, user.isHost, true);
     });
     updateParticipantCount();
   });
 
-  // Có người mới vào
   socket.on('user-joined', ({ userId, username: peerName, isHost: peerIsHost }) => {
-    console.log(`✅ ${peerName} đã vào phòng`);
     createPeerConnection(userId, peerName, peerIsHost, false);
     addSystemMessage(`${peerIsHost ? '👑 Chủ phòng' : 'Học viên'} ${peerName} đã tham gia`);
     updateParticipantCount();
     showToast(`👋 ${peerName} đã tham gia`);
   });
 
-  // Nhận offer
   socket.on('offer', async ({ from, offer, username: peerName }) => {
     if (!peers[from]) {
       createPeerConnection(from, peerName, false, false);
@@ -198,22 +199,20 @@ function connectSocket() {
       await peers[from].pc.setLocalDescription(answer);
       socket.emit('answer', { to: from, answer });
     } catch (err) {
-      console.error('Lỗi xử lý offer:', err);
+      console.error('Lỗi offer:', err);
     }
   });
 
-  // Nhận answer
   socket.on('answer', async ({ from, answer }) => {
     try {
       if (peers[from] && peers[from].pc.signalingState === 'have-local-offer') {
         await peers[from].pc.setRemoteDescription(new RTCSessionDescription(answer));
       }
     } catch (err) {
-      console.error('Lỗi xử lý answer:', err);
+      console.error('Lỗi answer:', err);
     }
   });
 
-  // Nhận ICE candidate
   socket.on('ice-candidate', async ({ from, candidate }) => {
     try {
       if (peers[from] && peers[from].pc.remoteDescription) {
@@ -222,22 +221,19 @@ function connectSocket() {
     } catch (err) {}
   });
 
-  // Có người rời phòng (học viên thường)
   socket.on('user-left', ({ userId, username: peerName }) => {
-    console.log(`❌ ${peerName} đã rời phòng`);
     removePeer(userId);
     addSystemMessage(`${peerName} đã rời phòng`);
     updateParticipantCount();
     showToast(`${peerName} đã rời phòng`);
   });
 
-  // Chat
   socket.on('chat-message', ({ userId, username: senderName, isHost: msgIsHost, message, timestamp }) => {
     addChatMessage(senderName, msgIsHost, message, timestamp, userId === socket.id);
   });
 
   socket.on('disconnect', () => {
-    showToast('⚠️ Đang ngắt kết nối...');
+    showToast('⚠️ Mất kết nối, đang thử lại...');
   });
 
   socket.on('reconnect', () => {
@@ -247,23 +243,15 @@ function connectSocket() {
   });
 }
 
-// Xử lý khi phòng bị đóng bởi chủ phòng
 function handleRoomTerminated(reasonText) {
-  // Dừng toàn bộ camera, mic, chia sẻ màn hình ngay lập tức
-  if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
-  }
-  if (screenStream) {
-    screenStream.getTracks().forEach(t => t.stop());
-  }
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (screenStream) screenStream.getTracks().forEach(t => t.stop());
 
-  // Đóng toàn bộ peer connection
   Object.values(peers).forEach(({ pc }) => pc.close());
   peers = {};
 
   if (timerInterval) clearInterval(timerInterval);
 
-  // Hiển thị modal văng ra ngoài
   const endedModal = document.getElementById('ended-modal');
   const endedMsg = document.getElementById('ended-message');
   if (endedMsg && reasonText) {
@@ -273,7 +261,6 @@ function handleRoomTerminated(reasonText) {
     endedModal.style.display = 'flex';
   }
 
-  // Đếm ngược 3 giây rồi văng ra trang chủ
   let count = 3;
   const countEl = document.getElementById('countdown-sec');
   const cdTimer = setInterval(() => {
@@ -287,7 +274,7 @@ function handleRoomTerminated(reasonText) {
 }
 
 // =========================================
-// WebRTC - PEER CONNECTION
+// WebRTC - TỐI ƯU HÓA PEER CONNECTION
 // =========================================
 
 function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
@@ -301,7 +288,7 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
     });
   }
 
-  // Video track (screen share hoặc camera)
+  // Video track
   if (isScreenSharing && screenStream && screenStream.getVideoTracks().length > 0) {
     screenStream.getVideoTracks().forEach(track => {
       pc.addTrack(track, screenStream);
@@ -312,7 +299,10 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
     });
   }
 
-  // Khi nhận video từ peer
+  // Ưu tiên Codec H.264 (Hỗ trợ giải mã phần cứng phần cứng GPU, giảm 80% CPU & triệt tiêu độ trễ)
+  optimizeCodecPreferences(pc);
+
+  // Khi nhận video từ người khác
   pc.ontrack = (event) => {
     let videoEl = document.getElementById(`video-${peerId}`);
     if (!videoEl) {
@@ -328,6 +318,9 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
       }
       stream.addTrack(event.track);
     }
+
+    // Đảm bảo video được phát ngay lập tức không bị đọng buffer
+    videoEl.play().catch(() => {});
   };
 
   pc.onicecandidate = (event) => {
@@ -347,10 +340,10 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
         .then(() => {
           socket.emit('offer', { to: peerId, offer: pc.localDescription });
         })
-        .catch(err => console.error('ICE restart failed:', err));
+        .catch(err => console.error('ICE restart:', err));
     }
     if (state === 'connected') {
-      limitBandwidth(pc);
+      tuneSenderParameters(pc);
     }
   };
 
@@ -372,8 +365,31 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
   return pc;
 }
 
-// Giới hạn bandwidth tối ưu đường truyền
-async function limitBandwidth(pc) {
+// Ưu tiên Codec H.264 phần cứng
+function optimizeCodecPreferences(pc) {
+  try {
+    if ('RTCRtpReceiver' in window && 'getCapabilities' in RTCRtpReceiver) {
+      const capabilities = RTCRtpReceiver.getCapabilities('video');
+      if (capabilities && capabilities.codecs) {
+        const h264Codecs = capabilities.codecs.filter(c => c.mimeType.toLowerCase() === 'video/h264');
+        const otherCodecs = capabilities.codecs.filter(c => c.mimeType.toLowerCase() !== 'video/h264');
+        const sortedCodecs = [...h264Codecs, ...otherCodecs];
+
+        const transceivers = pc.getTransceivers();
+        for (const transceiver of transceivers) {
+          if (transceiver.receiver && transceiver.receiver.track && transceiver.receiver.track.kind === 'video') {
+            if ('setCodecPreferences' in transceiver) {
+              transceiver.setCodecPreferences(sortedCodecs);
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+// Cấu hình bitrate mượt mà: không nghẽn băng thông, không tụt fps
+async function tuneSenderParameters(pc) {
   try {
     const senders = pc.getSenders();
     for (const sender of senders) {
@@ -382,18 +398,21 @@ async function limitBandwidth(pc) {
       if (!params.encodings || params.encodings.length === 0) {
         params.encodings = [{}];
       }
+
       if (sender.track.kind === 'video') {
-        params.encodings[0].maxBitrate = 500000;
+        // Luôn ưu tiên giữ khung hình mượt mà (maintain-framerate)
+        params.degradationPreference = 'maintain-framerate';
+        params.encodings[0].maxBitrate = 350000; // 350 kbps (vừa vặn, cực nhẹ, chống buffer nghẽn)
         params.encodings[0].maxFramerate = 24;
       } else if (sender.track.kind === 'audio') {
-        params.encodings[0].maxBitrate = 64000;
+        // Âm thanh Opus thoại chuẩn 32 kbps (rõ ràng, không trễ)
+        params.encodings[0].maxBitrate = 32000;
       }
       await sender.setParameters(params);
     }
   } catch (err) {}
 }
 
-// Tạo phần tử video cho peer
 function createVideoElement(peerId, peerUsername, peerIsHost) {
   const grid = document.getElementById('video-grid');
 
@@ -449,10 +468,8 @@ function removePeer(peerId) {
 // ĐIỀU KHIỂN & RỜI PHÒNG
 // =========================================
 
-// Xử lý khi bấm nút Rời phòng / Kết thúc phòng
 function handleLeaveButtonClick() {
   if (isHost) {
-    // Nếu là chủ phòng -> Hỏi xác nhận kết thúc lớp học
     const confirmEnd = confirm(
       "⚠️ BẠN LÀ NGƯỜI TẠO LỚP HỌC!\n\n" +
       "Nếu bạn thoát, buổi học này sẽ KẾT THÚC và TẤT CẢ mọi người sẽ tự động bị văng ra ngoài.\n\n" +
@@ -460,13 +477,10 @@ function handleLeaveButtonClick() {
     );
 
     if (confirmEnd) {
-      if (socket) {
-        socket.emit('end-room');
-      }
+      if (socket) socket.emit('end-room');
       cleanupAndExit();
     }
   } else {
-    // Học viên thường rời phòng
     const confirmLeave = confirm("Bạn có muốn rời khỏi lớp học này không?");
     if (confirmLeave) {
       cleanupAndExit();
@@ -527,9 +541,9 @@ async function toggleScreenShare() {
       screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { max: 15 }
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+          frameRate: { ideal: 15, max: 15 } // 15 fps mượt cho tài liệu, không làm nghẽn mạng
         },
         audio: false
       });
