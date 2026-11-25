@@ -17,6 +17,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 app.use(express.json());
 
+// Endpoint phục vụ favicon.ico chuẩn cho mọi trình duyệt (Chrome, Edge, Safari)
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.svg'));
+});
+
 // Quản lý phòng: roomId -> { hostSocketId, hostUsername, roomMode }
 // roomMode: 'classroom' (Lớp học) | 'meeting' (Cuộc họp) | 'interview' (Phỏng vấn)
 const rooms = new Map();
@@ -189,6 +194,36 @@ io.on('connection', (socket) => {
       roomMode: socket.roomMode,
       message,
       timestamp: new Date().toISOString()
+    });
+  });
+
+  // ---- Bảng vẽ tương tác (Interactive Whiteboard) ----
+
+  socket.on('whiteboard-draw', ({ roomId, drawData }) => {
+    socket.to(roomId).emit('whiteboard-draw', drawData);
+  });
+
+  socket.on('whiteboard-clear', ({ roomId }) => {
+    socket.to(roomId).emit('whiteboard-clear');
+  });
+
+  // ---- Giơ tay phát biểu (Raise Hand) ----
+
+  socket.on('raise-hand', ({ roomId, raised }) => {
+    io.to(roomId).emit('user-raise-hand', {
+      userId: socket.id,
+      username: socket.username,
+      raised: !!raised
+    });
+  });
+
+  // ---- Thả cảm xúc Emoji (Reactions) ----
+
+  socket.on('reaction', ({ roomId, emoji }) => {
+    io.to(roomId).emit('reaction-sent', {
+      userId: socket.id,
+      username: socket.username,
+      emoji: emoji || '👍'
     });
   });
 

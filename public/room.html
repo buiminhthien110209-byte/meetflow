@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetFlow — Phòng họp</title>
+  <title>MeetFlow — Phòng Họp Trực Tuyến</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+  <link rel="alternate icon" href="/favicon.ico">
 </head>
 <body class="room-page">
 
@@ -18,7 +19,7 @@
         <span>MeetFlow</span>
       </div>
       <h2>Tham gia phòng họp</h2>
-      <p class="modal-room-id">Phòng: <strong id="modal-room-id"></strong></p>
+      <p class="modal-room-id">Mã phòng: <strong id="modal-room-id"></strong></p>
       <div class="input-group">
         <input 
           type="text" 
@@ -31,7 +32,7 @@
       </div>
       <button class="btn btn-primary" onclick="joinCall()">
         <i class="fas fa-video"></i>
-        Vào phòng
+        Vào phòng ngay
       </button>
     </div>
   </div>
@@ -42,9 +43,9 @@
       <div class="modal-logo" style="background: none; color: #ff4757; -webkit-text-fill-color: initial;">
         <i class="fas fa-door-open" style="font-size: 38px; color: #ff4757;"></i>
       </div>
-      <h2 style="color: #ff4757; margin-bottom: 12px;">Lớp học đã kết thúc!</h2>
+      <h2 style="color: #ff4757; margin-bottom: 12px;">Buổi họp đã kết thúc!</h2>
       <p id="ended-message" style="color: var(--text-secondary); font-size: 15px; margin-bottom: 24px; line-height: 1.6;">
-        Người tạo lớp học đã rời đi hoặc đóng buổi học này. Bạn sẽ tự động văng về trang chủ trong <strong id="countdown-sec" style="color: #ff4757;">3</strong>s...
+        Người tạo phòng đã rời đi hoặc đóng phiên làm việc này. Bạn sẽ tự động trở về trang chủ trong <strong id="countdown-sec" style="color: #ff4757;">3</strong>s...
       </p>
       <button class="btn btn-primary" onclick="window.location.href='/'">
         <i class="fas fa-home"></i>
@@ -56,6 +57,9 @@
   <!-- Room Container -->
   <div class="room-container" id="room-container" style="display: none;">
     
+    <!-- Floating Reactions Animation Layer -->
+    <div class="reactions-container" id="reactions-container"></div>
+
     <!-- Header -->
     <header class="room-header">
       <div class="header-left">
@@ -75,9 +79,14 @@
           <i class="fas fa-crown" id="role-icon" style="color: #ff9f43;"></i>
           <span id="role-text">Chủ phòng</span>
         </div>
+        <!-- Recording Status Indicator -->
+        <div id="recording-indicator" class="recording-indicator" style="display: none;">
+          <span class="rec-dot"></span>
+          <span>REC <span id="record-timer">00:00</span></span>
+        </div>
       </div>
       <div class="header-right">
-        <div class="participant-badge">
+        <div class="participant-badge" onclick="openParticipantsTab()" style="cursor: pointer;" title="Xem danh sách người tham gia">
           <i class="fas fa-users"></i>
           <span id="participant-count">1</span>
         </div>
@@ -97,64 +106,167 @@
           <div class="video-name-tag">
             <span id="local-name-tag">Bạn</span>
           </div>
+          <div class="hand-raised-badge" id="local-hand-badge" style="display: none;">
+            <i class="fas fa-hand"></i> Đang giơ tay
+          </div>
           <div class="video-no-cam" id="local-no-cam" style="display: none;">
             <div class="avatar" id="local-avatar">?</div>
           </div>
         </div>
       </div>
 
-      <!-- Chat Panel -->
-      <aside class="chat-panel" id="chat-panel">
-        <div class="chat-header">
-          <h3><i class="fas fa-comments"></i> Tin nhắn</h3>
-          <button class="btn-icon" onclick="toggleChat()" title="Đóng chat">
+      <!-- Unified Sidebar (Chat & Participants) -->
+      <aside class="chat-panel" id="side-panel">
+        <div class="side-panel-tabs">
+          <button class="panel-tab active" id="tab-btn-chat" onclick="switchSideTab('chat')">
+            <i class="fas fa-comments"></i>
+            <span>Tin nhắn</span>
+            <span class="tab-badge" id="chat-badge" style="display: none;">0</span>
+          </button>
+          <button class="panel-tab" id="tab-btn-participants" onclick="switchSideTab('participants')">
+            <i class="fas fa-users"></i>
+            <span>Thành viên (<span id="panel-participant-count">1</span>)</span>
+          </button>
+          <button class="btn-icon close-panel-btn" onclick="toggleSidePanel()" title="Đóng bảng">
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <div class="chat-messages" id="chat-messages">
-          <div class="chat-empty">
-            <i class="fas fa-comments"></i>
-            <p>Chưa có tin nhắn</p>
+
+        <!-- Tab 1: Chat Messages -->
+        <div class="panel-content active" id="panel-content-chat">
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-empty">
+              <i class="fas fa-comments"></i>
+              <p>Chưa có tin nhắn trong phòng</p>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input 
+              type="text" 
+              id="chat-input" 
+              placeholder="Nhập tin nhắn..." 
+              class="chat-input-field"
+              maxlength="500"
+            >
+            <button class="btn-send" onclick="sendMessage()" title="Gửi">
+              <i class="fas fa-paper-plane"></i>
+            </button>
           </div>
         </div>
-        <div class="chat-input-area">
-          <input 
-            type="text" 
-            id="chat-input" 
-            placeholder="Nhập tin nhắn..." 
-            class="chat-input-field"
-            maxlength="500"
-          >
-          <button class="btn-send" onclick="sendMessage()" title="Gửi">
-            <i class="fas fa-paper-plane"></i>
-          </button>
+
+        <!-- Tab 2: Participants List -->
+        <div class="panel-content" id="panel-content-participants">
+          <div class="participants-list" id="participants-list">
+            <!-- Dynamic Rendered via JS -->
+          </div>
         </div>
       </aside>
     </main>
 
-    <!-- Controls -->
+    <!-- Reactions Floating Popover Menu -->
+    <div class="reactions-popover" id="reactions-popover" style="display: none;">
+      <button class="reaction-item" onclick="sendReaction('👍')" title="Thích">👍</button>
+      <button class="reaction-item" onclick="sendReaction('❤️')" title="Yêu thích">❤️</button>
+      <button class="reaction-item" onclick="sendReaction('👏')" title="Vỗ tay">👏</button>
+      <button class="reaction-item" onclick="sendReaction('🎉')" title="Chúc mừng">🎉</button>
+      <button class="reaction-item" onclick="sendReaction('😂')" title="Cười lớn">😂</button>
+      <button class="reaction-item" onclick="sendReaction('🔥')" title="Tuyệt vời">🔥</button>
+      <button class="reaction-item" onclick="sendReaction('💡')" title="Ý tưởng hay">💡</button>
+    </div>
+
+    <!-- Interactive Collaborative Whiteboard Modal -->
+    <div class="whiteboard-modal" id="whiteboard-modal" style="display: none;">
+      <div class="whiteboard-header">
+        <div class="whiteboard-title">
+          <i class="fas fa-pen-nib"></i>
+          <span>Bảng trắng tương tác MeetFlow</span>
+        </div>
+        <div class="whiteboard-toolbar">
+          <!-- Tool selection -->
+          <div class="wb-tool-group">
+            <button class="wb-btn active" id="wb-tool-pen" onclick="setWbTool('pen')" title="Bút vẽ">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+            <button class="wb-btn" id="wb-tool-eraser" onclick="setWbTool('eraser')" title="Cục tẩy">
+              <i class="fas fa-eraser"></i>
+            </button>
+          </div>
+          <!-- Colors -->
+          <div class="wb-color-group">
+            <button class="wb-color-dot active" style="background: #0f172a;" onclick="setWbColor('#0f172a')" title="Màu đen"></button>
+            <button class="wb-color-dot" style="background: #2563eb;" onclick="setWbColor('#2563eb')" title="Màu xanh dương"></button>
+            <button class="wb-color-dot" style="background: #dc2626;" onclick="setWbColor('#dc2626')" title="Màu đỏ"></button>
+            <button class="wb-color-dot" style="background: #16a34a;" onclick="setWbColor('#16a34a')" title="Màu xanh lá"></button>
+            <button class="wb-color-dot" style="background: #d97706;" onclick="setWbColor('#d97706')" title="Màu cam"></button>
+            <button class="wb-color-dot" style="background: #9333ea;" onclick="setWbColor('#9333ea')" title="Màu tím"></button>
+          </div>
+          <!-- Line size -->
+          <div class="wb-size-group">
+            <label for="wb-size" title="Độ dày nét vẽ"><i class="fas fa-circle" style="font-size: 10px;"></i></label>
+            <input type="range" id="wb-size" min="2" max="18" value="3" onchange="setWbSize(this.value)">
+          </div>
+          <!-- Actions -->
+          <button class="wb-btn" onclick="clearWhiteboard(true)" title="Xóa toàn bộ bảng">
+            <i class="fas fa-trash-alt"></i> Xóa bảng
+          </button>
+          <button class="wb-btn wb-btn-save" onclick="saveWhiteboardImage()" title="Tải ảnh vẽ về máy">
+            <i class="fas fa-download"></i> Lưu ảnh
+          </button>
+          <button class="wb-btn wb-btn-close" onclick="toggleWhiteboard()" title="Thu nhỏ bảng">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+      <div class="whiteboard-body">
+        <canvas id="whiteboard-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
     <footer class="controls-bar">
       <div class="controls-left">
         <span class="controls-info" id="username-display"></span>
       </div>
       <div class="controls-center">
-        <button id="btn-mic" class="control-btn active" onclick="toggleMute()" title="Tắt/Bật micro">
+        <!-- Mic -->
+        <button id="btn-mic" class="control-btn active" onclick="toggleMute()" title="Tắt/Bật Micro">
           <i class="fas fa-microphone"></i>
         </button>
-        <button id="btn-camera" class="control-btn active" onclick="toggleCamera()" title="Tắt/Bật camera">
+        <!-- Camera -->
+        <button id="btn-camera" class="control-btn active" onclick="toggleCamera()" title="Tắt/Bật Camera">
           <i class="fas fa-video"></i>
         </button>
+        <!-- Chia sẻ màn hình -->
         <button id="btn-screen" class="control-btn" onclick="toggleScreenShare()" title="Chia sẻ màn hình">
           <i class="fas fa-desktop"></i>
         </button>
-        <button id="btn-chat" class="control-btn" onclick="toggleChat()" title="Chat">
-          <i class="fas fa-comments"></i>
-          <span class="badge" id="chat-badge" style="display: none;">0</span>
+        <!-- Giơ tay phát biểu -->
+        <button id="btn-hand" class="control-btn" onclick="toggleHandRaise()" title="Giơ tay phát biểu">
+          <i class="fas fa-hand"></i>
         </button>
-        <button id="btn-copy" class="control-btn" onclick="copyRoomLink()" title="Copy link phòng">
+        <!-- Bảng trắng tương tác -->
+        <button id="btn-whiteboard" class="control-btn" onclick="toggleWhiteboard()" title="Mở Bảng trắng vẽ tương tác">
+          <i class="fas fa-chalkboard"></i>
+        </button>
+        <!-- Thả cảm xúc Emoji -->
+        <button id="btn-reactions" class="control-btn" onclick="toggleReactionsPopover()" title="Thả cảm xúc Emoji">
+          <i class="fas fa-smile"></i>
+        </button>
+        <!-- Ghi hình cuộc họp (Client-Side Free Recording) -->
+        <button id="btn-record" class="control-btn" onclick="toggleRecording()" title="Ghi lại cuộc họp">
+          <i class="fas fa-record-vinyl"></i>
+        </button>
+        <!-- Tin nhắn & Danh sách thành viên -->
+        <button id="btn-chat" class="control-btn" onclick="toggleSidePanel()" title="Trò chuyện & Thành viên">
+          <i class="fas fa-comments"></i>
+          <span class="badge" id="chat-badge-btn" style="display: none;">0</span>
+        </button>
+        <!-- Sao chép liên kết -->
+        <button id="btn-copy" class="control-btn" onclick="copyRoomLink()" title="Sao chép liên kết mời">
           <i class="fas fa-link"></i>
         </button>
-        <button id="btn-leave" class="control-btn leave" onclick="handleLeaveButtonClick()" title="Rời phòng">
+        <!-- Rời phòng -->
+        <button id="btn-leave" class="control-btn leave" onclick="handleLeaveButtonClick()" title="Rời hoặc kết thúc phòng">
           <i class="fas fa-phone-slash"></i>
         </button>
       </div>

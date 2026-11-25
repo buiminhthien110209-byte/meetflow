@@ -1,5 +1,5 @@
 // =========================================
-// MeetFlow - Room Logic (Ultra Low Latency Optimized)
+// MeetFlow - Room Logic (Enterprise Grade & Low Latency)
 // =========================================
 
 // ---- Biến toàn cục ----
@@ -10,16 +10,36 @@ let socket = null;
 let username = '';
 let isHost = false;
 let currentRoomMode = 'classroom'; // 'classroom' | 'meeting' | 'interview'
-let peers = {}; // { peerId: { pc: RTCPeerConnection, username: string, isHost: boolean } }
+let peers = {}; // { peerId: { pc: RTCPeerConnection, username: string, isHost: boolean, isHandRaised: boolean } }
 
-// Trạng thái UI
+// Trạng thái UI cuộc gọi
 let isMuted = false;
 let isCameraOff = false;
 let isScreenSharing = false;
-let isChatOpen = false;
+let isHandRaised = false;
+let isRecording = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordStartTime = null;
+let recordTimerInterval = null;
+
+// Trạng thái Sidebar (Chat & Thành viên)
+let isSidePanelOpen = false;
+let activeSideTab = 'chat'; // 'chat' | 'participants'
 let unreadCount = 0;
 let callStartTime = null;
 let timerInterval = null;
+
+// Trạng thái Bảng trắng tương tác
+let isWhiteboardOpen = false;
+let wbCanvas = null;
+let wbCtx = null;
+let wbDrawing = false;
+let wbTool = 'pen'; // 'pen' | 'eraser'
+let wbColor = '#0f172a';
+let wbSize = 3;
+let lastWbX = 0;
+let lastWbY = 0;
 
 // Cấu hình WebRTC tối ưu đường truyền cực nhanh:
 // Ưu tiên Google STUN & Cloudflare STUN (đặt server tại Đông Nam Á / Việt Nam)
@@ -65,6 +85,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
   });
+
+  // Đóng popover cảm xúc khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    const popover = document.getElementById('reactions-popover');
+    const btn = document.getElementById('btn-reactions');
+    if (popover && popover.style.display !== 'none' && !popover.contains(e.target) && !btn.contains(e.target)) {
+      popover.style.display = 'none';
+    }
+  });
+
+  // Khởi tạo bảng vẽ
+  initWhiteboard();
 });
 
 // Vào phòng
@@ -85,7 +117,7 @@ async function joinCall() {
   // Khởi tạo camera + mic độ trễ cực thấp
   await initMedia();
 
-  // Áp dụng cài đặt tắt mic / tắt cam từ trang chủ nếu có
+  // Áp dụng cài đặt tắt mic / cam từ trang chủ nếu có
   if (sessionStorage.getItem('meetflow-mute-mic') === 'true') {
     toggleMute();
   }
@@ -95,6 +127,7 @@ async function joinCall() {
 
   // Kết nối socket
   connectSocket();
+  updateParticipantsList();
 }
 
 // Cấu hình Camera & Mic chống lag, giảm tải CPU & băng thông
@@ -119,50 +152,34 @@ async function initMedia() {
 
     const localVideo = document.getElementById('local-video');
     localVideo.srcObject = localStream;
-    localVideo.muted = true; // Luôn mute local video để chống dội âm thanh
-    document.getElementById('local-no-cam').style.display = 'none';
   } catch (err) {
-    console.warn('Không thể truy cập camera/mic:', err);
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        }
-      });
-      showLocalNoCam();
-    } catch (e) {
-      console.warn('Không có quyền micro:', e);
-      localStream = new MediaStream();
-      showLocalNoCam();
-    }
-    showToast('⚠️ Không thể truy cập đầy đủ camera/microphone');
+    console.warn('Không thể mở camera/mic:', err);
+    isCameraOff = true;
+    isMuted = true;
+    document.getElementById('local-no-cam').style.display = 'flex';
+    document.getElementById('btn-camera').classList.replace('active', 'off');
+    document.getElementById('btn-camera').innerHTML = '<i class="fas fa-video-slash"></i>';
+    document.getElementById('btn-mic').classList.replace('active', 'off');
+    document.getElementById('btn-mic').innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    showToast('⚠️ Không thể truy cập Camera/Microphone');
   }
 }
 
-function showLocalNoCam() {
-  document.getElementById('local-no-cam').style.display = 'flex';
-}
-
 // =========================================
-// SOCKET.IO - SIGNALING
+// SOCKET.IO SIGNALING & SỰ KIỆN PHÒNG
 // =========================================
 
 function connectSocket() {
-  socket = io({
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 800,
-    transports: ['websocket'] // Ưu tiên trực tiếp giao thức WebSocket để truyền tin nhanh nhất
-  });
+  socket = io();
 
-  socket.on('connect', () => {
-    console.log('🔌 Đã kết nối Socket.IO:', socket.id);
-    const isCreator = sessionStorage.getItem('meetflow-is-creator') === 'true';
-    const roomMode = sessionStorage.getItem('meetflow-room-mode') || 'classroom';
-    socket.emit('join-room', { roomId, username, isCreator, roomMode });
+  const isCreator = sessionStorage.getItem('meetflow-creator') === 'true';
+  const savedMode = sessionStorage.getItem('meetflow-room-mode') || 'classroom';
+
+  socket.emit('join-room', {
+    roomId,
+    username,
+    isCreator,
+    roomMode: savedMode
   });
 
   socket.on('role-assignment', (data) => {
@@ -177,26 +194,30 @@ function connectSocket() {
     const roleText = document.getElementById('role-text');
     const leaveBtn = document.getElementById('btn-leave');
 
+    // Cập nhật giao diện & Tab title
     if (currentRoomMode === 'classroom') {
+      document.title = `MeetFlow — Lớp học: ${roomId}`;
       if (modeIcon) modeIcon.className = 'fas fa-graduation-cap';
       if (modeText) modeText.textContent = 'Lớp học trực tuyến';
       if (modeBadge) {
-        modeBadge.style.background = 'rgba(124, 58, 237, 0.1)';
-        modeBadge.style.color = '#7c3aed';
-        modeBadge.style.borderColor = 'rgba(124, 58, 237, 0.25)';
+        modeBadge.style.background = 'rgba(79, 70, 229, 0.1)';
+        modeBadge.style.color = '#4f46e5';
+        modeBadge.style.borderColor = 'rgba(79, 70, 229, 0.25)';
       }
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
           roleText.textContent = 'Giáo viên';
+          if (roleIcon) roleIcon.className = 'fas fa-chalkboard-teacher';
         }
         document.getElementById('local-name-tag').innerHTML = `👑 ${escapeHtml(username)} (Giáo viên)`;
-        if (leaveBtn) leaveBtn.title = 'Kết thúc lớp học (Đóng phòng cho tất cả học viên)';
-        showToast('👑 Bạn là Giáo viên / Chủ phòng');
+        if (leaveBtn) leaveBtn.title = 'Giải tán & Kết thúc lớp học';
+        showToast('👨‍🏫 Bạn là Giáo viên (Chủ phòng)');
       } else {
         document.getElementById('local-name-tag').innerHTML = `👩‍🎓 ${escapeHtml(username)} (Học viên)`;
       }
     } else if (currentRoomMode === 'meeting') {
+      document.title = `MeetFlow — Cuộc họp: ${roomId}`;
       if (modeIcon) modeIcon.className = 'fas fa-users-rectangle';
       if (modeText) modeText.textContent = 'Cuộc họp nhóm';
       if (modeBadge) {
@@ -217,6 +238,7 @@ function connectSocket() {
         document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Thành viên)`;
       }
     } else if (currentRoomMode === 'interview') {
+      document.title = `MeetFlow — Phỏng vấn: ${roomId}`;
       if (modeIcon) modeIcon.className = 'fas fa-user-tie';
       if (modeText) modeText.textContent = 'Phỏng vấn tuyển dụng';
       if (modeBadge) {
@@ -238,6 +260,8 @@ function connectSocket() {
         showToast('🎯 Chế độ Phỏng vấn: Bạn là Ứng viên');
       }
     }
+
+    updateParticipantsList();
   });
 
   socket.on('room-ended', ({ message }) => {
@@ -249,12 +273,14 @@ function connectSocket() {
       createPeerConnection(user.userId, user.username, user.isHost, true);
     });
     updateParticipantCount();
+    updateParticipantsList();
   });
 
   socket.on('user-joined', ({ userId, username: peerName, isHost: peerIsHost }) => {
     createPeerConnection(userId, peerName, peerIsHost, false);
-    addSystemMessage(`${peerIsHost ? '👑 Chủ phòng' : 'Học viên'} ${peerName} đã tham gia`);
+    addSystemMessage(`${peerIsHost ? '👑 Chủ phòng' : 'Thành viên'} ${peerName} đã tham gia`);
     updateParticipantCount();
+    updateParticipantsList();
     showToast(`👋 ${peerName} đã tham gia`);
   });
 
@@ -294,39 +320,62 @@ function connectSocket() {
     removePeer(userId);
     addSystemMessage(`${peerName} đã rời phòng`);
     updateParticipantCount();
+    updateParticipantsList();
     showToast(`${peerName} đã rời phòng`);
   });
 
   socket.on('chat-message', ({ userId, username: senderName, isHost: msgIsHost, message, timestamp }) => {
-    addChatMessage(senderName, msgIsHost, message, timestamp, userId === socket.id);
+    const isMe = (userId === socket.id);
+    addChatMessage(senderName, msgIsHost, message, timestamp, isMe);
   });
 
-  socket.on('disconnect', () => {
-    showToast('⚠️ Mất kết nối, đang thử lại...');
+  // Nhận thông báo giơ tay
+  socket.on('user-raise-hand', ({ userId, username: senderName, raised }) => {
+    if (peers[userId]) {
+      peers[userId].isHandRaised = raised;
+      const handBadge = document.getElementById(`hand-${userId}`);
+      if (handBadge) {
+        handBadge.style.display = raised ? 'inline-flex' : 'none';
+      }
+    }
+    if (raised) {
+      playChime('hand');
+      showToast(`✋ ${senderName} vừa giơ tay phát biểu`);
+    }
+    updateParticipantsList();
   });
 
-  socket.on('reconnect', () => {
-    showToast('✅ Đã kết nối lại');
-    const isCreator = sessionStorage.getItem('meetflow-is-creator') === 'true';
-    socket.emit('join-room', { roomId, username, isCreator });
+  // Nhận cảm xúc Emoji bay
+  socket.on('reaction-sent', ({ userId, username: senderName, emoji }) => {
+    createFloatingReaction(emoji);
+    if (userId !== socket.id) {
+      playChime('reaction');
+    }
+  });
+
+  // Nhận nét vẽ từ bảng trắng
+  socket.on('whiteboard-draw', (data) => {
+    handleRemoteDraw(data);
+  });
+
+  socket.on('whiteboard-clear', () => {
+    clearWhiteboard(false);
   });
 }
 
-function handleRoomTerminated(reasonText) {
+// Xử lý khi phòng kết thúc
+function handleRoomTerminated(message) {
   if (localStream) localStream.getTracks().forEach(t => t.stop());
   if (screenStream) screenStream.getTracks().forEach(t => t.stop());
 
-  Object.values(peers).forEach(({ pc }) => pc.close());
-  peers = {};
-
-  if (timerInterval) clearInterval(timerInterval);
-
+  const roomContainer = document.getElementById('room-container');
   const endedModal = document.getElementById('ended-modal');
   const endedMsg = document.getElementById('ended-message');
-  if (endedMsg && reasonText) {
-    endedMsg.innerHTML = `${escapeHtml(reasonText)}<br><br>Bạn sẽ tự động văng về trang chủ trong <strong id="countdown-sec" style="color: #ff4757;">3</strong>s...`;
-  }
+
+  if (roomContainer) roomContainer.style.display = 'none';
+  if (endedMsg && message) endedMsg.textContent = message;
   if (endedModal) {
+    endedModal.classList.remove('hidden');
     endedModal.style.display = 'flex';
   }
 
@@ -348,7 +397,7 @@ function handleRoomTerminated(reasonText) {
 
 function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
   const pc = new RTCPeerConnection(rtcConfig);
-  peers[peerId] = { pc, username: peerUsername, isHost: peerIsHost };
+  peers[peerId] = { pc, username: peerUsername, isHost: peerIsHost, isHandRaised: false };
 
   // Audio track
   if (localStream) {
@@ -368,7 +417,7 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
     });
   }
 
-  // Ưu tiên Codec H.264 (Hỗ trợ giải mã phần cứng phần cứng GPU, giảm 80% CPU & triệt tiêu độ trễ)
+  // Ưu tiên Codec H.264
   optimizeCodecPreferences(pc);
 
   // Khi nhận video từ người khác
@@ -387,8 +436,6 @@ function createPeerConnection(peerId, peerUsername, peerIsHost, isInitiator) {
       }
       stream.addTrack(event.track);
     }
-
-    // Đảm bảo video được phát ngay lập tức không bị đọng buffer
     videoEl.play().catch(() => {});
   };
 
@@ -457,7 +504,7 @@ function optimizeCodecPreferences(pc) {
   } catch (e) {}
 }
 
-// Cấu hình bitrate mượt mà: không nghẽn băng thông, không tụt fps
+// Cấu hình bitrate mượt mà
 async function tuneSenderParameters(pc) {
   try {
     const senders = pc.getSenders();
@@ -469,12 +516,10 @@ async function tuneSenderParameters(pc) {
       }
 
       if (sender.track.kind === 'video') {
-        // Luôn ưu tiên giữ khung hình mượt mà (maintain-framerate)
         params.degradationPreference = 'maintain-framerate';
-        params.encodings[0].maxBitrate = 350000; // 350 kbps (vừa vặn, cực nhẹ, chống buffer nghẽn)
+        params.encodings[0].maxBitrate = 350000;
         params.encodings[0].maxFramerate = 24;
       } else if (sender.track.kind === 'audio') {
-        // Âm thanh Opus thoại chuẩn 32 kbps (rõ ràng, không trễ)
         params.encodings[0].maxBitrate = 32000;
       }
       await sender.setParameters(params);
@@ -494,7 +539,6 @@ function createVideoElement(peerId, peerUsername, peerIsHost) {
   video.autoplay = true;
   video.playsInline = true;
 
-  // Nhãn tên hiển thị tùy biến theo chế độ cuộc họp
   let peerLabel = escapeHtml(peerUsername);
   if (currentRoomMode === 'classroom') {
     peerLabel = peerIsHost
@@ -514,6 +558,12 @@ function createVideoElement(peerId, peerUsername, peerIsHost) {
   nameTag.className = 'video-name-tag';
   nameTag.innerHTML = peerLabel;
 
+  const handBadge = document.createElement('div');
+  handBadge.className = 'hand-raised-badge';
+  handBadge.id = `hand-${peerId}`;
+  handBadge.style.display = 'none';
+  handBadge.innerHTML = '<i class="fas fa-hand"></i> Đang giơ tay';
+
   const noCam = document.createElement('div');
   noCam.className = 'video-no-cam';
   noCam.id = `no-cam-${peerId}`;
@@ -526,6 +576,7 @@ function createVideoElement(peerId, peerUsername, peerIsHost) {
   container.appendChild(video);
   container.appendChild(noCam);
   container.appendChild(nameTag);
+  container.appendChild(handBadge);
   grid.appendChild(container);
 
   updateGridLayout();
@@ -537,9 +588,10 @@ function removePeer(peerId) {
     peers[peerId].pc.close();
     delete peers[peerId];
   }
+
   const container = document.getElementById(`container-${peerId}`);
   if (container) {
-    container.style.animation = 'msg-in 0.2s ease reverse';
+    container.classList.add('removing');
     setTimeout(() => {
       container.remove();
       updateGridLayout();
@@ -548,61 +600,72 @@ function removePeer(peerId) {
 }
 
 // =========================================
-// ĐIỀU KHIỂN & RỜI PHÒNG (TÙY BIẾN THEO CHẾ ĐỘ)
+// ĐIỀU KHIỂN RỜI PHÒNG & GIẢI TÁN
 // =========================================
 
 function handleLeaveButtonClick() {
   if (isHost) {
     if (currentRoomMode === 'classroom') {
       const confirmEnd = confirm(
-        "⚠️ BẠN LÀ GIÁO VIÊN / CHỦ PHÒNG HỌC!\n\n" +
-        "Nếu bạn thoát, buổi học này sẽ KẾT THÚC và TẤT CẢ học viên sẽ tự động giải tán ra ngoài.\n\n" +
-        "Bạn có chắc chắn muốn kết thúc lớp học không?"
+        '⚠️ BẠN LÀ GIÁO VIÊN (CHỦ PHÒNG)\n\n' +
+        'Nếu bạn rời đi, toàn bộ lớp học sẽ ĐƯỢC GIẢI TÁN và tất cả học viên sẽ tự động văng về trang chủ.\n\n' +
+        'Bạn có chắc chắn muốn kết thúc buổi học này không?'
       );
       if (confirmEnd) {
-        if (socket) socket.emit('end-room');
-        cleanupAndExit();
+        socket.emit('end-room');
+        leaveCall();
       }
-    } else if (currentRoomMode === 'meeting') {
-      // Trong cuộc họp nhóm: người tổ chức có thể chọn kết thúc cho tất cả hoặc chỉ mình mình rời
-      const endForAll = confirm(
-        "💼 BẠN LÀ NGƯỜI TỔ CHỨC CUỘC HỌP!\n\n" +
-        "• Bấm [OK] để KẾT THÚC CUỘC HỌP CHO TẤT CẢ MỌI NGƯỜI.\n" +
-        "• Bấm [HỦY / Cancel] nếu bạn chỉ muốn MỘT MÌNH RỜI ĐI (Cuộc họp vẫn tiếp tục cho những người khác)."
-      );
-      if (endForAll) {
-        if (socket) socket.emit('end-room');
-      }
-      cleanupAndExit();
     } else if (currentRoomMode === 'interview') {
       const confirmEnd = confirm(
-        "👔 BẠN LÀ NHÀ TUYỂN DỤNG!\n\n" +
-        "Xác nhận hoàn tất và kết thúc buổi phỏng vấn này?\n(Ứng viên sẽ nhận được lời cảm ơn từ hệ thống)"
+        '👔 BẠN LÀ NHÀ TUYỂN DỤNG\n\n' +
+        'Bạn có muốn hoàn tất buổi phỏng vấn và đóng phòng họp này không?'
       );
       if (confirmEnd) {
-        if (socket) socket.emit('end-room');
-        cleanupAndExit();
+        socket.emit('end-room');
+        leaveCall();
+      }
+    } else if (currentRoomMode === 'meeting') {
+      const choice = confirm(
+        '💼 TÙY CHỌN RỜI CUỘC HỌP:\n\n' +
+        '• Bấm OK: Để KẾT THÚC cuộc họp cho tất cả mọi người.\n' +
+        '• Bấm CANCEL (HỦY): Để chỉ MỘT MÌNH BẠN rời đi (cuộc họp vẫn tiếp tục cho thành viên khác).'
+      );
+      if (choice) {
+        socket.emit('end-room');
+        leaveCall();
+      } else {
+        leaveCall();
       }
     }
   } else {
-    const confirmLeave = confirm("Bạn có chắc chắn muốn rời khỏi phòng không?");
+    const confirmLeave = confirm('Bạn có chắc chắn muốn rời khỏi phòng họp không?');
     if (confirmLeave) {
-      cleanupAndExit();
+      leaveCall();
     }
   }
 }
 
-function cleanupAndExit() {
+function leaveCall() {
+  if (isRecording) {
+    stopRecording();
+  }
   if (localStream) localStream.getTracks().forEach(t => t.stop());
   if (screenStream) screenStream.getTracks().forEach(t => t.stop());
-  Object.values(peers).forEach(({ pc }) => pc.close());
+  for (const peerId of Object.keys(peers)) {
+    peers[peerId].pc.close();
+  }
   peers = {};
   if (socket) socket.disconnect();
   if (timerInterval) clearInterval(timerInterval);
   window.location.href = '/';
 }
 
+// =========================================
+// CONTROLS: MIC, CAMERA, SCREEN, HAND, REACTIONS
+// =========================================
+
 function toggleMute() {
+  if (!localStream) return;
   isMuted = !isMuted;
   localStream.getAudioTracks().forEach(track => {
     track.enabled = !isMuted;
@@ -612,14 +675,18 @@ function toggleMute() {
     btn.classList.remove('active');
     btn.classList.add('off');
     btn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    showToast('🔇 Đã tắt Micro');
   } else {
     btn.classList.remove('off');
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-microphone"></i>';
+    showToast('🎙️ Đã bật Micro');
   }
+  updateParticipantsList();
 }
 
 function toggleCamera() {
+  if (!localStream) return;
   isCameraOff = !isCameraOff;
   localStream.getVideoTracks().forEach(track => {
     track.enabled = !isCameraOff;
@@ -631,11 +698,13 @@ function toggleCamera() {
     btn.classList.add('off');
     btn.innerHTML = '<i class="fas fa-video-slash"></i>';
     document.getElementById('local-no-cam').style.display = 'flex';
+    showToast('📷 Đã tắt Camera');
   } else {
     btn.classList.remove('off');
     btn.classList.add('active');
     btn.innerHTML = '<i class="fas fa-video"></i>';
     document.getElementById('local-no-cam').style.display = 'none';
+    showToast('📷 Đã bật Camera');
   }
 }
 
@@ -647,7 +716,7 @@ async function toggleScreenShare() {
           cursor: 'always',
           width: { ideal: 1280, max: 1280 },
           height: { ideal: 720, max: 720 },
-          frameRate: { ideal: 15, max: 15 } // 15 fps mượt cho tài liệu, không làm nghẽn mạng
+          frameRate: { ideal: 15, max: 15 }
         },
         audio: false
       });
@@ -681,7 +750,7 @@ async function toggleScreenShare() {
 async function stopScreenShare() {
   if (!isScreenSharing) return;
 
-  const videoTrack = localStream.getVideoTracks()[0];
+  const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
 
   for (const [peerId, { pc }] of Object.entries(peers)) {
     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
@@ -707,22 +776,465 @@ async function stopScreenShare() {
   showToast('Đã dừng chia sẻ màn hình');
 }
 
-function toggleChat() {
-  isChatOpen = !isChatOpen;
-  document.getElementById('chat-panel').classList.toggle('open', isChatOpen);
-  const btn = document.getElementById('btn-chat');
+// Giơ tay phát biểu
+function toggleHandRaise() {
+  isHandRaised = !isHandRaised;
+  const btn = document.getElementById('btn-hand');
+  const localBadge = document.getElementById('local-hand-badge');
 
-  if (isChatOpen) {
-    btn.classList.add('active');
-    unreadCount = 0;
-    document.getElementById('chat-badge').style.display = 'none';
-    setTimeout(() => {
-      document.getElementById('chat-input').focus();
-    }, 300);
+  if (isHandRaised) {
+    btn.classList.add('hand-raised');
+    if (localBadge) localBadge.style.display = 'inline-flex';
+    playChime('hand');
+    showToast('✋ Bạn đang giơ tay phát biểu');
   } else {
+    btn.classList.remove('hand-raised');
+    if (localBadge) localBadge.style.display = 'none';
+    showToast('Đã hạ tay');
+  }
+
+  if (socket) {
+    socket.emit('raise-hand', { roomId, raised: isHandRaised });
+  }
+
+  updateParticipantsList();
+}
+
+// Thả cảm xúc Emoji
+function toggleReactionsPopover() {
+  const popover = document.getElementById('reactions-popover');
+  if (popover.style.display === 'none' || !popover.style.display) {
+    popover.style.display = 'flex';
+  } else {
+    popover.style.display = 'none';
+  }
+}
+
+function sendReaction(emoji) {
+  const popover = document.getElementById('reactions-popover');
+  if (popover) popover.style.display = 'none';
+
+  createFloatingReaction(emoji);
+
+  if (socket) {
+    socket.emit('reaction', { roomId, emoji });
+  }
+}
+
+function createFloatingReaction(emoji) {
+  const container = document.getElementById('reactions-container');
+  if (!container) return;
+
+  const span = document.createElement('span');
+  span.className = 'floating-reaction';
+  span.textContent = emoji;
+
+  // Random vị trí ngang trong khoảng 10px đến 160px
+  const randomLeft = Math.floor(Math.random() * 150) + 10;
+  span.style.left = `${randomLeft}px`;
+
+  container.appendChild(span);
+
+  setTimeout(() => {
+    span.remove();
+  }, 2800);
+}
+
+// =========================================
+// GHI HÌNH CUỘC HỌP (Client-Side Free Recording)
+// =========================================
+
+async function toggleRecording() {
+  if (!isRecording) {
+    startRecording();
+  } else {
+    stopRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser' },
+      audio: true
+    });
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm'
+    });
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        recordedChunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.download = `MeetFlow-${currentRoomMode}-${dateStr}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 100);
+
+      stream.getTracks().forEach(t => t.stop());
+      showToast('💾 Video buổi họp đã được tải về máy của bạn!');
+    };
+
+    mediaRecorder.start(1000); // 1s slice
+    isRecording = true;
+
+    // Cập nhật UI
+    const recBtn = document.getElementById('btn-record');
+    if (recBtn) recBtn.classList.add('recording');
+    const recIndicator = document.getElementById('recording-indicator');
+    if (recIndicator) recIndicator.style.display = 'inline-flex';
+
+    recordStartTime = Date.now();
+    recordTimerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
+      const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const secs = String(elapsed % 60).padStart(2, '0');
+      const timerEl = document.getElementById('record-timer');
+      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+    }, 1000);
+
+    showToast('🔴 Đang ghi hình cuộc họp!');
+
+    stream.getVideoTracks()[0].onended = () => {
+      if (isRecording) stopRecording();
+    };
+  } catch (err) {
+    console.warn('Hủy ghi hình:', err);
+  }
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+
+  const recBtn = document.getElementById('btn-record');
+  if (recBtn) recBtn.classList.remove('recording');
+  const recIndicator = document.getElementById('recording-indicator');
+  if (recIndicator) recIndicator.style.display = 'none';
+
+  if (recordTimerInterval) {
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = null;
+  }
+}
+
+// =========================================
+// BẢNG TRẮNG TƯƠNG TÁC (Collaborative Whiteboard)
+// =========================================
+
+function initWhiteboard() {
+  wbCanvas = document.getElementById('whiteboard-canvas');
+  if (!wbCanvas) return;
+  wbCtx = wbCanvas.getContext('2d');
+
+  function resizeCanvas() {
+    if (!wbCanvas || !wbCanvas.parentElement) return;
+    const rect = wbCanvas.parentElement.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      // Sao lưu nội dung cũ trước khi resize
+      const imgData = wbCtx.getImageData(0, 0, wbCanvas.width, wbCanvas.height);
+      wbCanvas.width = rect.width;
+      wbCanvas.height = rect.height;
+      wbCtx.putImageData(imgData, 0, 0);
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // Sự kiện vẽ bằng chuột
+  wbCanvas.addEventListener('mousedown', (e) => {
+    wbDrawing = true;
+    const { x, y } = getCanvasPos(e);
+    lastWbX = x;
+    lastWbY = y;
+  });
+
+  wbCanvas.addEventListener('mousemove', (e) => {
+    if (!wbDrawing) return;
+    const { x, y } = getCanvasPos(e);
+    drawStroke(lastWbX, lastWbY, x, y, wbColor, wbSize, wbTool, true);
+    lastWbX = x;
+    lastWbY = y;
+  });
+
+  window.addEventListener('mouseup', () => {
+    wbDrawing = false;
+  });
+
+  // Hỗ trợ cảm ứng (Touch / iPad / Điện thoại)
+  wbCanvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    wbDrawing = true;
+    const touch = e.touches[0];
+    const { x, y } = getCanvasPos(touch);
+    lastWbX = x;
+    lastWbY = y;
+  }, { passive: false });
+
+  wbCanvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!wbDrawing) return;
+    const touch = e.touches[0];
+    const { x, y } = getCanvasPos(touch);
+    drawStroke(lastWbX, lastWbY, x, y, wbColor, wbSize, wbTool, true);
+    lastWbX = x;
+    lastWbY = y;
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    wbDrawing = false;
+  });
+}
+
+function getCanvasPos(e) {
+  const rect = wbCanvas.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+function drawStroke(x0, y0, x1, y1, color, size, tool, emit) {
+  if (!wbCtx) return;
+  wbCtx.beginPath();
+  wbCtx.moveTo(x0, y0);
+  wbCtx.lineTo(x1, y1);
+  wbCtx.lineCap = 'round';
+  wbCtx.lineJoin = 'round';
+
+  if (tool === 'eraser') {
+    wbCtx.strokeStyle = '#ffffff';
+    wbCtx.lineWidth = size * 3;
+  } else {
+    wbCtx.strokeStyle = color;
+    wbCtx.lineWidth = size;
+  }
+
+  wbCtx.stroke();
+  wbCtx.closePath();
+
+  if (emit && socket) {
+    socket.emit('whiteboard-draw', {
+      roomId,
+      drawData: {
+        x0: x0 / wbCanvas.width,
+        y0: y0 / wbCanvas.height,
+        x1: x1 / wbCanvas.width,
+        y1: y1 / wbCanvas.height,
+        color,
+        size,
+        tool
+      }
+    });
+  }
+}
+
+function handleRemoteDraw(data) {
+  if (!wbCanvas) return;
+  const x0 = data.x0 * wbCanvas.width;
+  const y0 = data.y0 * wbCanvas.height;
+  const x1 = data.x1 * wbCanvas.width;
+  const y1 = data.y1 * wbCanvas.height;
+  drawStroke(x0, y0, x1, y1, data.color, data.size, data.tool, false);
+}
+
+function toggleWhiteboard() {
+  const modal = document.getElementById('whiteboard-modal');
+  const btn = document.getElementById('btn-whiteboard');
+  isWhiteboardOpen = !isWhiteboardOpen;
+
+  if (isWhiteboardOpen) {
+    modal.style.display = 'flex';
+    btn.classList.add('active');
+    setTimeout(() => {
+      const rect = wbCanvas.parentElement.getBoundingClientRect();
+      wbCanvas.width = rect.width;
+      wbCanvas.height = rect.height;
+    }, 50);
+  } else {
+    modal.style.display = 'none';
     btn.classList.remove('active');
   }
 }
+
+function setWbTool(tool) {
+  wbTool = tool;
+  document.getElementById('wb-tool-pen').classList.toggle('active', tool === 'pen');
+  document.getElementById('wb-tool-eraser').classList.toggle('active', tool === 'eraser');
+}
+
+function setWbColor(color) {
+  wbColor = color;
+  setWbTool('pen');
+  document.querySelectorAll('.wb-color-dot').forEach(dot => {
+    dot.classList.toggle('active', dot.style.background === color || dot.style.backgroundColor === color);
+  });
+}
+
+function setWbSize(size) {
+  wbSize = parseInt(size, 10);
+}
+
+function clearWhiteboard(emit) {
+  if (!wbCtx || !wbCanvas) return;
+  wbCtx.clearRect(0, 0, wbCanvas.width, wbCanvas.height);
+  if (emit && socket) {
+    socket.emit('whiteboard-clear', { roomId });
+    showToast('🧹 Đã xóa toàn bộ bảng trắng');
+  }
+}
+
+function saveWhiteboardImage() {
+  if (!wbCanvas) return;
+  const link = document.createElement('a');
+  link.download = `MeetFlow-Whiteboard-${roomId}.png`;
+  link.href = wbCanvas.toDataURL('image/png');
+  link.click();
+  showToast('📥 Đã tải ảnh bảng vẽ về máy!');
+}
+
+// =========================================
+// SIDEBAR (CHAT & PARTICIPANTS)
+// =========================================
+
+function toggleSidePanel() {
+  isSidePanelOpen = !isSidePanelOpen;
+  const panel = document.getElementById('side-panel');
+  const btn = document.getElementById('btn-chat');
+
+  panel.classList.toggle('open', isSidePanelOpen);
+  btn.classList.toggle('active', isSidePanelOpen);
+
+  if (isSidePanelOpen) {
+    unreadCount = 0;
+    const badge = document.getElementById('chat-badge');
+    const btnBadge = document.getElementById('chat-badge-btn');
+    if (badge) badge.style.display = 'none';
+    if (btnBadge) btnBadge.style.display = 'none';
+    if (activeSideTab === 'chat') {
+      setTimeout(() => document.getElementById('chat-input').focus(), 250);
+    }
+  }
+}
+
+function switchSideTab(tab) {
+  activeSideTab = tab;
+  const chatTabBtn = document.getElementById('tab-btn-chat');
+  const partTabBtn = document.getElementById('tab-btn-participants');
+  const chatContent = document.getElementById('panel-content-chat');
+  const partContent = document.getElementById('panel-content-participants');
+
+  if (tab === 'chat') {
+    chatTabBtn.classList.add('active');
+    partTabBtn.classList.remove('active');
+    chatContent.classList.add('active');
+    partContent.classList.remove('active');
+    setTimeout(() => document.getElementById('chat-input').focus(), 150);
+  } else {
+    chatTabBtn.classList.remove('active');
+    partTabBtn.classList.add('active');
+    chatContent.classList.remove('active');
+    partContent.classList.add('active');
+    updateParticipantsList();
+  }
+}
+
+function openParticipantsTab() {
+  if (!isSidePanelOpen) {
+    toggleSidePanel();
+  }
+  switchSideTab('participants');
+}
+
+function updateParticipantsList() {
+  const container = document.getElementById('participants-list');
+  if (!container) return;
+
+  const totalCount = Object.keys(peers).length + 1;
+  const countEl = document.getElementById('panel-participant-count');
+  if (countEl) countEl.textContent = totalCount;
+
+  container.innerHTML = '';
+
+  // 1. Thêm bản thân (Local user)
+  let myRoleName = 'Thành viên';
+  if (currentRoomMode === 'classroom') {
+    myRoleName = isHost ? 'Giáo viên (Chủ phòng)' : 'Học viên';
+  } else if (currentRoomMode === 'meeting') {
+    myRoleName = isHost ? 'Người tổ chức' : 'Thành viên';
+  } else if (currentRoomMode === 'interview') {
+    myRoleName = isHost ? 'Nhà tuyển dụng' : 'Ứng viên';
+  }
+
+  const myItem = document.createElement('div');
+  myItem.className = 'participant-item';
+  myItem.innerHTML = `
+    <div class="participant-info">
+      <div class="participant-avatar-badge">${username.charAt(0).toUpperCase()}</div>
+      <div class="participant-name-wrap">
+        <span class="participant-name-text">${escapeHtml(username)} (Bạn)</span>
+        <span class="participant-role-pill ${isHost ? 'host' : 'member'}">${myRoleName}</span>
+      </div>
+    </div>
+    <div class="participant-status-icons">
+      ${isHandRaised ? '<span class="participant-hand-icon" title="Đang giơ tay">✋</span>' : ''}
+      <i class="fas ${isMuted ? 'fa-microphone-slash text-danger' : 'fa-microphone text-success'}"></i>
+    </div>
+  `;
+  container.appendChild(myItem);
+
+  // 2. Thêm các peers
+  for (const [peerId, peer] of Object.entries(peers)) {
+    let peerRoleName = 'Thành viên';
+    if (currentRoomMode === 'classroom') {
+      peerRoleName = peer.isHost ? 'Giáo viên' : 'Học viên';
+    } else if (currentRoomMode === 'meeting') {
+      peerRoleName = peer.isHost ? 'Người tổ chức' : 'Thành viên';
+    } else if (currentRoomMode === 'interview') {
+      peerRoleName = peer.isHost ? 'Nhà tuyển dụng' : 'Ứng viên';
+    }
+
+    const item = document.createElement('div');
+    item.className = 'participant-item';
+    item.innerHTML = `
+      <div class="participant-info">
+        <div class="participant-avatar-badge">${peer.username.charAt(0).toUpperCase()}</div>
+        <div class="participant-name-wrap">
+          <span class="participant-name-text">${escapeHtml(peer.username)}</span>
+          <span class="participant-role-pill ${peer.isHost ? 'host' : 'member'}">${peerRoleName}</span>
+        </div>
+      </div>
+      <div class="participant-status-icons">
+        ${peer.isHandRaised ? '<span class="participant-hand-icon" title="Đang giơ tay">✋</span>' : ''}
+        <i class="fas fa-microphone text-success"></i>
+      </div>
+    `;
+    container.appendChild(item);
+  }
+}
+
+// =========================================
+// CHAT UI
+// =========================================
 
 function sendMessage() {
   const input = document.getElementById('chat-input');
@@ -733,23 +1245,6 @@ function sendMessage() {
   input.value = '';
   input.focus();
 }
-
-function copyRoomLink() {
-  navigator.clipboard.writeText(window.location.href).then(() => {
-    const btn = document.getElementById('btn-copy');
-    btn.innerHTML = '<i class="fas fa-check"></i>';
-    btn.classList.add('active');
-    showToast('📋 Đã copy link phòng!');
-    setTimeout(() => {
-      btn.innerHTML = '<i class="fas fa-link"></i>';
-      btn.classList.remove('active');
-    }, 2000);
-  });
-}
-
-// =========================================
-// CHAT UI
-// =========================================
 
 function addChatMessage(name, msgIsHost, message, timestamp, isMe) {
   const empty = document.querySelector('.chat-empty');
@@ -764,9 +1259,12 @@ function addChatMessage(name, msgIsHost, message, timestamp, isMe) {
     minute: '2-digit'
   });
 
-  const senderLabel = isMe
-    ? (isHost ? 'Bạn (👑 Chủ phòng)' : 'Bạn')
-    : (msgIsHost ? `👑 ${escapeHtml(name)}` : escapeHtml(name));
+  let senderLabel = isMe ? 'Bạn' : escapeHtml(name);
+  if (msgIsHost) {
+    if (currentRoomMode === 'classroom') senderLabel += ' 👨‍🏫';
+    else if (currentRoomMode === 'interview') senderLabel += ' 👔';
+    else senderLabel += ' 👑';
+  }
 
   div.innerHTML = `
     <div class="chat-message-header">
@@ -779,11 +1277,18 @@ function addChatMessage(name, msgIsHost, message, timestamp, isMe) {
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 
-  if (!isChatOpen && !isMe) {
+  if (!isSidePanelOpen && !isMe) {
     unreadCount++;
     const badge = document.getElementById('chat-badge');
-    badge.style.display = 'flex';
-    badge.textContent = unreadCount;
+    const btnBadge = document.getElementById('chat-badge-btn');
+    if (badge) {
+      badge.style.display = 'inline-block';
+      badge.textContent = unreadCount;
+    }
+    if (btnBadge) {
+      btnBadge.style.display = 'flex';
+      btnBadge.textContent = unreadCount;
+    }
   }
 }
 
@@ -800,8 +1305,47 @@ function addSystemMessage(text) {
 }
 
 // =========================================
-// TIỆN ÍCH
+// TIỆN ÍCH & ÂM THANH WEB AUDIO API
 // =========================================
+
+function playChime(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'hand') {
+      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25); // A5
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } else {
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    }
+  } catch (e) {}
+}
+
+function copyRoomLink() {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.innerHTML = '<i class="fas fa-check"></i>';
+    btn.classList.add('active');
+    showToast('📋 Đã copy link phòng!');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="fas fa-link"></i>';
+      btn.classList.remove('active');
+    }, 2000);
+  });
+}
 
 function updateGridLayout() {
   const grid = document.getElementById('video-grid');
