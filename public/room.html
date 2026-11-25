@@ -56,9 +56,6 @@
 
   <!-- Room Container -->
   <div class="room-container" id="room-container" style="display: none;">
-    
-    <!-- Floating Reactions Animation Layer -->
-    <div class="reactions-container" id="reactions-container"></div>
 
     <!-- Header -->
     <header class="room-header">
@@ -78,11 +75,6 @@
         <div id="role-badge" class="room-badge" style="display: none; background: rgba(255, 159, 67, 0.12); color: #ff9f43; border-color: rgba(255, 159, 67, 0.3);">
           <i class="fas fa-crown" id="role-icon" style="color: #ff9f43;"></i>
           <span id="role-text">Chủ phòng</span>
-        </div>
-        <!-- Recording Status Indicator -->
-        <div id="recording-indicator" class="recording-indicator" style="display: none;">
-          <span class="rec-dot"></span>
-          <span>REC <span id="record-timer">00:00</span></span>
         </div>
       </div>
       <div class="header-right">
@@ -163,18 +155,7 @@
       </aside>
     </main>
 
-    <!-- Reactions Floating Popover Menu -->
-    <div class="reactions-popover" id="reactions-popover" style="display: none;">
-      <button class="reaction-item" onclick="sendReaction('👍')" title="Thích">👍</button>
-      <button class="reaction-item" onclick="sendReaction('❤️')" title="Yêu thích">❤️</button>
-      <button class="reaction-item" onclick="sendReaction('👏')" title="Vỗ tay">👏</button>
-      <button class="reaction-item" onclick="sendReaction('🎉')" title="Chúc mừng">🎉</button>
-      <button class="reaction-item" onclick="sendReaction('😂')" title="Cười lớn">😂</button>
-      <button class="reaction-item" onclick="sendReaction('🔥')" title="Tuyệt vời">🔥</button>
-      <button class="reaction-item" onclick="sendReaction('💡')" title="Ý tưởng hay">💡</button>
-    </div>
-
-    <!-- Interactive Collaborative Whiteboard Modal -->
+      <!-- Interactive Collaborative Whiteboard Modal -->
     <div class="whiteboard-modal" id="whiteboard-modal" style="display: none;">
       <div class="whiteboard-header">
         <div class="whiteboard-title">
@@ -247,14 +228,6 @@
         <!-- Bảng trắng tương tác -->
         <button id="btn-whiteboard" class="control-btn" onclick="toggleWhiteboard()" title="Mở Bảng trắng vẽ tương tác">
           <i class="fas fa-chalkboard"></i>
-        </button>
-        <!-- Thả cảm xúc Emoji -->
-        <button id="btn-reactions" class="control-btn" onclick="toggleReactionsPopover()" title="Thả cảm xúc Emoji">
-          <i class="fas fa-smile"></i>
-        </button>
-        <!-- Ghi hình cuộc họp (Client-Side Free Recording) -->
-        <button id="btn-record" class="control-btn" onclick="toggleRecording()" title="Ghi lại cuộc họp">
-          <i class="fas fa-record-vinyl"></i>
         </button>
         <!-- Tin nhắn & Danh sách thành viên -->
         <button id="btn-chat" class="control-btn" onclick="toggleSidePanel()" title="Trò chuyện & Thành viên">

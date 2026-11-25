@@ -17,11 +17,6 @@ let isMuted = false;
 let isCameraOff = false;
 let isScreenSharing = false;
 let isHandRaised = false;
-let isRecording = false;
-let mediaRecorder = null;
-let recordedChunks = [];
-let recordStartTime = null;
-let recordTimerInterval = null;
 
 // Trạng thái Sidebar (Chat & Thành viên)
 let isSidePanelOpen = false;
@@ -84,15 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('chat-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
-  });
-
-  // Đóng popover cảm xúc khi click ra ngoài
-  document.addEventListener('click', (e) => {
-    const popover = document.getElementById('reactions-popover');
-    const btn = document.getElementById('btn-reactions');
-    if (popover && popover.style.display !== 'none' && !popover.contains(e.target) && !btn.contains(e.target)) {
-      popover.style.display = 'none';
-    }
   });
 
   // Khởi tạo bảng vẽ
@@ -343,14 +329,6 @@ function connectSocket() {
       showToast(`✋ ${senderName} vừa giơ tay phát biểu`);
     }
     updateParticipantsList();
-  });
-
-  // Nhận cảm xúc Emoji bay
-  socket.on('reaction-sent', ({ userId, username: senderName, emoji }) => {
-    createFloatingReaction(emoji);
-    if (userId !== socket.id) {
-      playChime('reaction');
-    }
   });
 
   // Nhận nét vẽ từ bảng trắng
@@ -646,9 +624,6 @@ function handleLeaveButtonClick() {
 }
 
 function leaveCall() {
-  if (isRecording) {
-    stopRecording();
-  }
   if (localStream) localStream.getTracks().forEach(t => t.stop());
   if (screenStream) screenStream.getTracks().forEach(t => t.stop());
   for (const peerId of Object.keys(peers)) {
@@ -798,143 +773,6 @@ function toggleHandRaise() {
   }
 
   updateParticipantsList();
-}
-
-// Thả cảm xúc Emoji
-function toggleReactionsPopover() {
-  const popover = document.getElementById('reactions-popover');
-  if (popover.style.display === 'none' || !popover.style.display) {
-    popover.style.display = 'flex';
-  } else {
-    popover.style.display = 'none';
-  }
-}
-
-function sendReaction(emoji) {
-  const popover = document.getElementById('reactions-popover');
-  if (popover) popover.style.display = 'none';
-
-  createFloatingReaction(emoji);
-
-  if (socket) {
-    socket.emit('reaction', { roomId, emoji });
-  }
-}
-
-function createFloatingReaction(emoji) {
-  const container = document.getElementById('reactions-container');
-  if (!container) return;
-
-  const span = document.createElement('span');
-  span.className = 'floating-reaction';
-  span.textContent = emoji;
-
-  // Random vị trí ngang trong khoảng 10px đến 160px
-  const randomLeft = Math.floor(Math.random() * 150) + 10;
-  span.style.left = `${randomLeft}px`;
-
-  container.appendChild(span);
-
-  setTimeout(() => {
-    span.remove();
-  }, 2800);
-}
-
-// =========================================
-// GHI HÌNH CUỘC HỌP (Client-Side Free Recording)
-// =========================================
-
-async function toggleRecording() {
-  if (!isRecording) {
-    startRecording();
-  } else {
-    stopRecording();
-  }
-}
-
-async function startRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: 'browser' },
-      audio: true
-    });
-
-    recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream, {
-      mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : 'video/webm'
-    });
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        recordedChunks.push(e.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      a.download = `MeetFlow-${currentRoomMode}-${dateStr}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-        a.remove();
-      }, 100);
-
-      stream.getTracks().forEach(t => t.stop());
-      showToast('💾 Video buổi họp đã được tải về máy của bạn!');
-    };
-
-    mediaRecorder.start(1000); // 1s slice
-    isRecording = true;
-
-    // Cập nhật UI
-    const recBtn = document.getElementById('btn-record');
-    if (recBtn) recBtn.classList.add('recording');
-    const recIndicator = document.getElementById('recording-indicator');
-    if (recIndicator) recIndicator.style.display = 'inline-flex';
-
-    recordStartTime = Date.now();
-    recordTimerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - recordStartTime) / 1000);
-      const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
-      const secs = String(elapsed % 60).padStart(2, '0');
-      const timerEl = document.getElementById('record-timer');
-      if (timerEl) timerEl.textContent = `${mins}:${secs}`;
-    }, 1000);
-
-    showToast('🔴 Đang ghi hình cuộc họp!');
-
-    stream.getVideoTracks()[0].onended = () => {
-      if (isRecording) stopRecording();
-    };
-  } catch (err) {
-    console.warn('Hủy ghi hình:', err);
-  }
-}
-
-function stopRecording() {
-  if (!isRecording) return;
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-  }
-  isRecording = false;
-
-  const recBtn = document.getElementById('btn-record');
-  if (recBtn) recBtn.classList.remove('recording');
-  const recIndicator = document.getElementById('recording-indicator');
-  if (recIndicator) recIndicator.style.display = 'none';
-
-  if (recordTimerInterval) {
-    clearInterval(recordTimerInterval);
-    recordTimerInterval = null;
-  }
 }
 
 // =========================================
@@ -1317,20 +1155,12 @@ function playChime(type) {
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'hand') {
-      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25); // A5
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.35);
-    } else {
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.2);
-    }
+    osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25); // A5
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
   } catch (e) {}
 }
 

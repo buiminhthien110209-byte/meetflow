@@ -217,16 +217,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ---- Thả cảm xúc Emoji (Reactions) ----
-
-  socket.on('reaction', ({ roomId, emoji }) => {
-    io.to(roomId).emit('reaction-sent', {
-      userId: socket.id,
-      username: socket.username,
-      emoji: emoji || '👍'
-    });
-  });
-
   // ---- Ngắt kết nối ----
 
   socket.on('disconnect', () => {
