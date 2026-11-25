@@ -6,12 +6,61 @@ let testerStream = null;
 let testerAudioContext = null;
 let testerAnalyser = null;
 let testerAnimFrame = null;
+let selectedRoomMode = 'classroom'; // 'classroom' | 'meeting' | 'interview'
 
 // Khởi chạy khi tài liệu sẵn sàng
 document.addEventListener('DOMContentLoaded', () => {
   initClock();
   setupEnterKeys();
 });
+
+// =========================================
+// CHỌN HÌNH THỨC CUỘC HỌP (3 CHẾ ĐỘ)
+// =========================================
+function selectRoomMode(mode) {
+  selectedRoomMode = mode;
+  const modes = ['classroom', 'meeting', 'interview'];
+
+  modes.forEach(m => {
+    const card = document.getElementById(`mode-${m}`);
+    if (!card) return;
+    const checkIcon = card.querySelector('.mode-check i');
+
+    if (m === mode) {
+      card.classList.add('active');
+      if (checkIcon) {
+        checkIcon.className = 'fas fa-circle-check';
+      }
+    } else {
+      card.classList.remove('active');
+      if (checkIcon) {
+        checkIcon.className = 'far fa-circle';
+      }
+    }
+  });
+
+  const btnText = document.getElementById('btn-create-text');
+  const btnIcon = document.querySelector('#btn-create i');
+  const hintEl = document.getElementById('hub-mode-hint');
+  const nameInput = document.getElementById('create-name');
+
+  if (mode === 'classroom') {
+    if (btnText) btnText.textContent = 'Bắt đầu Lớp học mới';
+    if (btnIcon) btnIcon.className = 'fas fa-chalkboard-teacher';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-crown text-warning"></i> Chế độ <strong>Lớp học</strong>: Giáo viên là Chủ phòng, tự động giải tán lớp học khi bạn rời đi.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên giáo viên / chủ lớp (vd: Thầy Long, Cô Mai...)';
+  } else if (mode === 'meeting') {
+    if (btnText) btnText.textContent = 'Bắt đầu Cuộc họp nhóm';
+    if (btnIcon) btnIcon.className = 'fas fa-users';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-users-rectangle text-primary"></i> Chế độ <strong>Cuộc họp</strong>: Thảo luận nhóm tự do, cuộc họp vẫn tiếp tục khi bạn rời đi.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên của bạn (vd: Hoàng Minh, Trưởng nhóm...)';
+  } else if (mode === 'interview') {
+    if (btnText) btnText.textContent = 'Bắt đầu Phỏng vấn';
+    if (btnIcon) btnIcon.className = 'fas fa-user-tie';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-briefcase text-warning"></i> Chế độ <strong>Phỏng vấn 1-1</strong>: Tối ưu Nhà tuyển dụng và Ứng viên với nhãn định danh chuyên nghiệp.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên Người phỏng vấn / HR (vd: HR Lan, Tuấn Anh...)';
+  }
+}
 
 // =========================================
 // TAB SWITCHER
@@ -81,14 +130,19 @@ async function createRoom() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang tạo lớp học...';
 
-  // Lưu tuỳ chọn tắt mic/cam khi vào
+  // Lưu tuỳ chọn tắt mic/cam khi vào & chế độ phòng
   const muteMic = document.getElementById('create-mute-mic')?.checked || false;
   const muteCam = document.getElementById('create-mute-cam')?.checked || false;
   sessionStorage.setItem('meetflow-mute-mic', muteMic ? 'true' : 'false');
   sessionStorage.setItem('meetflow-mute-cam', muteCam ? 'true' : 'false');
+  sessionStorage.setItem('meetflow-room-mode', selectedRoomMode);
 
   try {
-    const res = await fetch('/api/room/create', { method: 'POST' });
+    const res = await fetch('/api/room/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomMode: selectedRoomMode })
+    });
     const data = await res.json();
 
     // Lưu quyền chủ phòng

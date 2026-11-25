@@ -9,6 +9,7 @@ let screenStream = null;
 let socket = null;
 let username = '';
 let isHost = false;
+let currentRoomMode = 'classroom'; // 'classroom' | 'meeting' | 'interview'
 let peers = {}; // { peerId: { pc: RTCPeerConnection, username: string, isHost: boolean } }
 
 // Trạng thái UI
@@ -160,22 +161,82 @@ function connectSocket() {
   socket.on('connect', () => {
     console.log('🔌 Đã kết nối Socket.IO:', socket.id);
     const isCreator = sessionStorage.getItem('meetflow-is-creator') === 'true';
-    socket.emit('join-room', { roomId, username, isCreator });
+    const roomMode = sessionStorage.getItem('meetflow-room-mode') || 'classroom';
+    socket.emit('join-room', { roomId, username, isCreator, roomMode });
   });
 
   socket.on('role-assignment', (data) => {
     isHost = data.isHost;
-    if (isHost) {
-      const roleBadge = document.getElementById('role-badge');
-      if (roleBadge) roleBadge.style.display = 'flex';
+    currentRoomMode = data.roomMode || 'classroom';
 
-      const leaveBtn = document.getElementById('btn-leave');
-      if (leaveBtn) {
-        leaveBtn.title = 'Kết thúc lớp học (Đóng phòng cho tất cả học viên)';
+    const modeBadge = document.getElementById('mode-badge');
+    const modeIcon = document.getElementById('mode-icon');
+    const modeText = document.getElementById('mode-text');
+    const roleBadge = document.getElementById('role-badge');
+    const roleIcon = document.getElementById('role-icon');
+    const roleText = document.getElementById('role-text');
+    const leaveBtn = document.getElementById('btn-leave');
+
+    if (currentRoomMode === 'classroom') {
+      if (modeIcon) modeIcon.className = 'fas fa-graduation-cap';
+      if (modeText) modeText.textContent = 'Lớp học trực tuyến';
+      if (modeBadge) {
+        modeBadge.style.background = 'rgba(124, 58, 237, 0.1)';
+        modeBadge.style.color = '#7c3aed';
+        modeBadge.style.borderColor = 'rgba(124, 58, 237, 0.25)';
       }
-
-      document.getElementById('local-name-tag').innerHTML = `👑 ${escapeHtml(username)} (Chủ phòng)`;
-      showToast('👑 Bạn là người tạo lớp học');
+      if (isHost) {
+        if (roleBadge) {
+          roleBadge.style.display = 'flex';
+          roleText.textContent = 'Giáo viên';
+        }
+        document.getElementById('local-name-tag').innerHTML = `👑 ${escapeHtml(username)} (Giáo viên)`;
+        if (leaveBtn) leaveBtn.title = 'Kết thúc lớp học (Đóng phòng cho tất cả học viên)';
+        showToast('👑 Bạn là Giáo viên / Chủ phòng');
+      } else {
+        document.getElementById('local-name-tag').innerHTML = `👩‍🎓 ${escapeHtml(username)} (Học viên)`;
+      }
+    } else if (currentRoomMode === 'meeting') {
+      if (modeIcon) modeIcon.className = 'fas fa-users-rectangle';
+      if (modeText) modeText.textContent = 'Cuộc họp nhóm';
+      if (modeBadge) {
+        modeBadge.style.background = 'rgba(2, 132, 199, 0.1)';
+        modeBadge.style.color = '#0284c7';
+        modeBadge.style.borderColor = 'rgba(2, 132, 199, 0.25)';
+      }
+      if (isHost) {
+        if (roleBadge) {
+          roleBadge.style.display = 'flex';
+          roleText.textContent = 'Người tổ chức';
+          if (roleIcon) roleIcon.className = 'fas fa-star';
+        }
+        document.getElementById('local-name-tag').innerHTML = `⭐ ${escapeHtml(username)} (Người tổ chức)`;
+        if (leaveBtn) leaveBtn.title = 'Rời hoặc kết thúc cuộc họp';
+        showToast('⭐ Bạn là Người tổ chức cuộc họp');
+      } else {
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Thành viên)`;
+      }
+    } else if (currentRoomMode === 'interview') {
+      if (modeIcon) modeIcon.className = 'fas fa-user-tie';
+      if (modeText) modeText.textContent = 'Phỏng vấn tuyển dụng';
+      if (modeBadge) {
+        modeBadge.style.background = 'rgba(217, 119, 6, 0.1)';
+        modeBadge.style.color = '#d97706';
+        modeBadge.style.borderColor = 'rgba(217, 119, 6, 0.25)';
+      }
+      if (isHost) {
+        if (roleBadge) {
+          roleBadge.style.display = 'flex';
+          roleText.textContent = 'Nhà tuyển dụng';
+          if (roleIcon) roleIcon.className = 'fas fa-briefcase';
+        }
+        document.getElementById('local-name-tag').innerHTML = `👔 ${escapeHtml(username)} (Nhà tuyển dụng)`;
+        if (leaveBtn) leaveBtn.title = 'Hoàn tất phỏng vấn & Đóng phòng';
+        showToast('👔 Bạn là Nhà tuyển dụng (Interviewer)');
+      } else {
+        document.getElementById('local-name-tag').innerHTML = `🎯 ${escapeHtml(username)} (Ứng viên)`;
+        showToast('🎯 Chế độ Phỏng vấn: Bạn là Ứng viên');
+      }
     }
   });
 
@@ -433,11 +494,25 @@ function createVideoElement(peerId, peerUsername, peerIsHost) {
   video.autoplay = true;
   video.playsInline = true;
 
+  // Nhãn tên hiển thị tùy biến theo chế độ cuộc họp
+  let peerLabel = escapeHtml(peerUsername);
+  if (currentRoomMode === 'classroom') {
+    peerLabel = peerIsHost
+      ? `👑 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#a78bfa;">(Giáo viên)</span>`
+      : `👩‍🎓 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#cbd5e1;">(Học viên)</span>`;
+  } else if (currentRoomMode === 'meeting') {
+    peerLabel = peerIsHost
+      ? `⭐ ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#38bdf8;">(Người tổ chức)</span>`
+      : `${escapeHtml(peerUsername)}`;
+  } else if (currentRoomMode === 'interview') {
+    peerLabel = peerIsHost
+      ? `👔 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#fbbf24;">(Nhà tuyển dụng)</span>`
+      : `🎯 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#34d399;">(Ứng viên)</span>`;
+  }
+
   const nameTag = document.createElement('div');
   nameTag.className = 'video-name-tag';
-  nameTag.innerHTML = peerIsHost
-    ? `👑 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#ff9f43;">(Chủ phòng)</span>`
-    : escapeHtml(peerUsername);
+  nameTag.innerHTML = peerLabel;
 
   const noCam = document.createElement('div');
   noCam.className = 'video-no-cam';
@@ -473,23 +548,44 @@ function removePeer(peerId) {
 }
 
 // =========================================
-// ĐIỀU KHIỂN & RỜI PHÒNG
+// ĐIỀU KHIỂN & RỜI PHÒNG (TÙY BIẾN THEO CHẾ ĐỘ)
 // =========================================
 
 function handleLeaveButtonClick() {
   if (isHost) {
-    const confirmEnd = confirm(
-      "⚠️ BẠN LÀ NGƯỜI TẠO LỚP HỌC!\n\n" +
-      "Nếu bạn thoát, buổi học này sẽ KẾT THÚC và TẤT CẢ mọi người sẽ tự động bị văng ra ngoài.\n\n" +
-      "Bạn có chắc chắn muốn kết thúc lớp học không?"
-    );
-
-    if (confirmEnd) {
-      if (socket) socket.emit('end-room');
+    if (currentRoomMode === 'classroom') {
+      const confirmEnd = confirm(
+        "⚠️ BẠN LÀ GIÁO VIÊN / CHỦ PHÒNG HỌC!\n\n" +
+        "Nếu bạn thoát, buổi học này sẽ KẾT THÚC và TẤT CẢ học viên sẽ tự động giải tán ra ngoài.\n\n" +
+        "Bạn có chắc chắn muốn kết thúc lớp học không?"
+      );
+      if (confirmEnd) {
+        if (socket) socket.emit('end-room');
+        cleanupAndExit();
+      }
+    } else if (currentRoomMode === 'meeting') {
+      // Trong cuộc họp nhóm: người tổ chức có thể chọn kết thúc cho tất cả hoặc chỉ mình mình rời
+      const endForAll = confirm(
+        "💼 BẠN LÀ NGƯỜI TỔ CHỨC CUỘC HỌP!\n\n" +
+        "• Bấm [OK] để KẾT THÚC CUỘC HỌP CHO TẤT CẢ MỌI NGƯỜI.\n" +
+        "• Bấm [HỦY / Cancel] nếu bạn chỉ muốn MỘT MÌNH RỜI ĐI (Cuộc họp vẫn tiếp tục cho những người khác)."
+      );
+      if (endForAll) {
+        if (socket) socket.emit('end-room');
+      }
       cleanupAndExit();
+    } else if (currentRoomMode === 'interview') {
+      const confirmEnd = confirm(
+        "👔 BẠN LÀ NHÀ TUYỂN DỤNG!\n\n" +
+        "Xác nhận hoàn tất và kết thúc buổi phỏng vấn này?\n(Ứng viên sẽ nhận được lời cảm ơn từ hệ thống)"
+      );
+      if (confirmEnd) {
+        if (socket) socket.emit('end-room');
+        cleanupAndExit();
+      }
     }
   } else {
-    const confirmLeave = confirm("Bạn có muốn rời khỏi lớp học này không?");
+    const confirmLeave = confirm("Bạn có chắc chắn muốn rời khỏi phòng không?");
     if (confirmLeave) {
       cleanupAndExit();
     }

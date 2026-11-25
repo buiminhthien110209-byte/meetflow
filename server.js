@@ -17,7 +17,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 app.use(express.json());
 
-// Quản lý phòng: roomId -> { hostSocketId, hostUsername }
+// Quản lý phòng: roomId -> { hostSocketId, hostUsername, roomMode }
+// roomMode: 'classroom' (Lớp học) | 'meeting' (Cuộc họp) | 'interview' (Phỏng vấn)
 const rooms = new Map();
 
 // ========== API ==========
@@ -25,7 +26,9 @@ const rooms = new Map();
 // Tạo phòng mới
 app.post('/api/room/create', (req, res) => {
   const roomId = uuidv4().substring(0, 8);
-  res.json({ roomId });
+  const roomMode = req.body && req.body.roomMode ? req.body.roomMode : 'classroom';
+  rooms.set(roomId, { hostSocketId: null, hostUsername: null, roomMode });
+  res.json({ roomId, roomMode });
 });
 
 // Phục vụ trang phòng họp
@@ -39,59 +42,87 @@ io.on('connection', (socket) => {
   console.log(`✅ Kết nối mới: ${socket.id}`);
 
   // Hàm xử lý khi chủ phòng kết thúc hoặc thoát
-  function handleHostLeave(roomId, hostUsername) {
-    if (rooms.has(roomId)) {
-      rooms.delete(roomId);
-      console.log(`🛑 Lớp học ${roomId} đã đóng bởi chủ phòng (${hostUsername}). Đang đẩy tất cả người tham gia ra.`);
-      
-      // Báo cho tất cả người trong phòng biết lớp học đã kết thúc
-      io.to(roomId).emit('room-ended', {
-        message: `Người tạo lớp (${hostUsername}) đã thoát. Lớp học đã chính thức kết thúc!`
-      });
+  function handleHostLeave(roomId, hostUsername, forced = false) {
+    const roomInfo = rooms.get(roomId);
+    if (!roomInfo) return;
 
-      // Rút tất cả socket ra khỏi phòng
-      const roomSockets = io.sockets.adapter.rooms.get(roomId);
-      if (roomSockets) {
-        for (const id of roomSockets) {
-          const s = io.sockets.sockets.get(id);
-          if (s) {
-            s.leave(roomId);
-            s.roomId = null;
-          }
+    const mode = roomInfo.roomMode || 'classroom';
+
+    // Nếu là chế độ Cuộc họp nhóm và chỉ thoát bình thường (không phải bấm Kết thúc tất cả):
+    // Cuộc họp vẫn duy trì cho các thành viên còn lại!
+    if (mode === 'meeting' && !forced) {
+      console.log(`💼 Người tổ chức (${hostUsername}) đã rời cuộc họp ${roomId}. Cuộc họp vẫn tiếp tục.`);
+      socket.to(roomId).emit('user-left', {
+        userId: socket.id,
+        username: hostUsername
+      });
+      return;
+    }
+
+    // Với Lớp học (classroom) hoặc Phỏng vấn (interview) hoặc khi bấm Kết thúc tất cả:
+    rooms.delete(roomId);
+    
+    let endMessage = `Lớp học đã chính thức kết thúc do Giáo viên (${hostUsername}) đóng phòng.`;
+    if (mode === 'interview') {
+      endMessage = `Buổi phỏng vấn đã hoàn tất bởi Người phỏng vấn (${hostUsername}). Cảm ơn ứng viên đã tham gia!`;
+    } else if (mode === 'meeting') {
+      endMessage = `Cuộc họp đã được kết thúc cho tất cả thành viên bởi người tổ chức (${hostUsername}).`;
+    }
+
+    console.log(`🛑 Phòng ${roomId} [Chế độ: ${mode}] đã đóng bởi (${hostUsername}). Đang giải tán phòng.`);
+
+    io.to(roomId).emit('room-ended', {
+      message: endMessage,
+      roomMode: mode
+    });
+
+    // Rút tất cả socket ra khỏi phòng
+    const roomSockets = io.sockets.adapter.rooms.get(roomId);
+    if (roomSockets) {
+      for (const id of roomSockets) {
+        const s = io.sockets.sockets.get(id);
+        if (s) {
+          s.leave(roomId);
+          s.roomId = null;
         }
       }
     }
   }
 
   // Tham gia phòng
-  socket.on('join-room', ({ roomId, username, isCreator }) => {
+  socket.on('join-room', ({ roomId, username, isCreator, roomMode }) => {
     socket.join(roomId);
     socket.roomId = roomId;
     socket.username = username || 'Ẩn danh';
 
-    // Xác định ai là chủ phòng / người tạo lớp
     let roomInfo = rooms.get(roomId);
     if (!roomInfo) {
-      // Người đầu tiên vào hoặc người tạo
-      roomInfo = { hostSocketId: socket.id, hostUsername: socket.username };
+      roomInfo = {
+        hostSocketId: socket.id,
+        hostUsername: socket.username,
+        roomMode: roomMode || 'classroom'
+      };
       rooms.set(roomId, roomInfo);
       socket.isHost = true;
     } else if (isCreator && (!roomInfo.hostSocketId || !io.sockets.sockets.has(roomInfo.hostSocketId))) {
-      // Chủ phòng cũ vào lại hoặc người tạo claim quyền
       roomInfo.hostSocketId = socket.id;
       roomInfo.hostUsername = socket.username;
+      if (roomMode) roomInfo.roomMode = roomMode;
       socket.isHost = true;
     } else {
       socket.isHost = (roomInfo.hostSocketId === socket.id);
     }
 
-    // Thông báo cho socket này biết họ có phải là Host không
+    socket.roomMode = roomInfo.roomMode || 'classroom';
+
+    // Báo vai trò và chế độ phòng cho người dùng
     socket.emit('role-assignment', {
       isHost: socket.isHost,
-      hostUsername: roomInfo.hostUsername
+      hostUsername: roomInfo.hostUsername,
+      roomMode: socket.roomMode
     });
 
-    // Gửi danh sách user đã có trong phòng cho người mới
+    // Gửi danh sách user đang có trong phòng
     const usersInRoom = [];
     const roomSockets = io.sockets.adapter.rooms.get(roomId);
     if (roomSockets) {
@@ -102,7 +133,8 @@ io.on('connection', (socket) => {
             usersInRoom.push({
               userId: id,
               username: s.username || 'Ẩn danh',
-              isHost: s.isHost || false
+              isHost: s.isHost || false,
+              roomMode: socket.roomMode
             });
           }
         }
@@ -110,21 +142,22 @@ io.on('connection', (socket) => {
     }
     socket.emit('existing-users', usersInRoom);
 
-    // Thông báo cho người khác biết có người mới
+    // Thông báo cho người khác trong phòng
     socket.to(roomId).emit('user-joined', {
       userId: socket.id,
       username: socket.username,
-      isHost: socket.isHost
+      isHost: socket.isHost,
+      roomMode: socket.roomMode
     });
 
     const count = io.sockets.adapter.rooms.get(roomId)?.size || 0;
-    console.log(`👤 ${socket.username} (${socket.isHost ? '👑 Chủ phòng' : 'Học viên'}) vào phòng ${roomId} (${count} người)`);
+    console.log(`👤 ${socket.username} [${socket.isHost ? 'Host' : 'Member'}] vào phòng ${roomId} [${socket.roomMode}] (${count} người)`);
   });
 
-  // Chủ phòng chủ động ấn "Kết thúc lớp học"
+  // Chủ phòng chủ động ấn "Kết thúc cuộc họp/lớp học"
   socket.on('end-room', () => {
     if (socket.isHost && socket.roomId) {
-      handleHostLeave(socket.roomId, socket.username);
+      handleHostLeave(socket.roomId, socket.username, true);
     }
   });
 
@@ -153,6 +186,7 @@ io.on('connection', (socket) => {
       userId: socket.id,
       username: socket.username,
       isHost: socket.isHost,
+      roomMode: socket.roomMode,
       message,
       timestamp: new Date().toISOString()
     });
@@ -163,14 +197,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (socket.roomId) {
       if (socket.isHost) {
-        console.log(`❌ Chủ phòng ${socket.username} đã thoát/đóng trình duyệt -> Giải tán lớp học ${socket.roomId}`);
-        handleHostLeave(socket.roomId, socket.username);
+        handleHostLeave(socket.roomId, socket.username, false);
       } else {
         socket.to(socket.roomId).emit('user-left', {
           userId: socket.id,
           username: socket.username
         });
-        console.log(`❌ Học viên ${socket.username} rời phòng ${socket.roomId}`);
+        console.log(`❌ Thành viên ${socket.username} rời phòng ${socket.roomId}`);
       }
     }
   });

@@ -88,7 +88,58 @@
 
           <!-- Tab Content: Tạo phòng mới -->
           <div class="hub-content active" id="tab-content-create">
-            <div class="input-field-wrapper">
+            <!-- Bộ chọn 3 chế độ cuộc họp chuyên dụng -->
+            <div class="room-mode-selector">
+              <label class="mode-label"><i class="fas fa-layer-group text-primary"></i> Chọn hình thức phòng họp:</label>
+              <div class="mode-cards">
+                <!-- Chế độ 1: Lớp học -->
+                <div class="mode-card active" id="mode-classroom" onclick="selectRoomMode('classroom')">
+                  <div class="mode-icon-wrapper icon-classroom">
+                    <i class="fas fa-graduation-cap"></i>
+                  </div>
+                  <div class="mode-info">
+                    <div class="mode-header">
+                      <span class="mode-title">Tạo Lớp học</span>
+                      <span class="mode-badge-tag tag-classroom">Giáo Dục</span>
+                    </div>
+                    <span class="mode-desc">Giáo viên làm chủ phòng. Tự động giải tán lớp khi giáo viên rời phòng.</span>
+                  </div>
+                  <div class="mode-check"><i class="fas fa-circle-check"></i></div>
+                </div>
+
+                <!-- Chế độ 2: Cuộc họp -->
+                <div class="mode-card" id="mode-meeting" onclick="selectRoomMode('meeting')">
+                  <div class="mode-icon-wrapper icon-meeting">
+                    <i class="fas fa-users-rectangle"></i>
+                  </div>
+                  <div class="mode-info">
+                    <div class="mode-header">
+                      <span class="mode-title">Tạo Cuộc họp</span>
+                      <span class="mode-badge-tag tag-meeting">Doanh Nghiệp</span>
+                    </div>
+                    <span class="mode-desc">Thảo luận nhóm tự do. Cuộc họp vẫn duy trì liên tục khi người tạo rời đi.</span>
+                  </div>
+                  <div class="mode-check"><i class="far fa-circle"></i></div>
+                </div>
+
+                <!-- Chế độ 3: Phỏng vấn -->
+                <div class="mode-card" id="mode-interview" onclick="selectRoomMode('interview')">
+                  <div class="mode-icon-wrapper icon-interview">
+                    <i class="fas fa-user-tie"></i>
+                  </div>
+                  <div class="mode-info">
+                    <div class="mode-header">
+                      <span class="mode-title">Tạo Cuộc phỏng vấn</span>
+                      <span class="mode-badge-tag tag-interview">Tuyển Dụng</span>
+                    </div>
+                    <span class="mode-desc">Tối ưu 1-1 chuyên sâu giữa Nhà tuyển dụng và Ứng viên.</span>
+                  </div>
+                  <div class="mode-check"><i class="far fa-circle"></i></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-field-wrapper" style="margin-top: 18px;">
               <i class="fas fa-user-edit input-icon"></i>
               <input 
                 type="text" 
@@ -114,11 +165,11 @@
             </div>
 
             <button id="btn-create" class="btn-hero-primary" onclick="createRoom()">
-              <i class="fas fa-plus-circle"></i>
-              <span>Bắt đầu cuộc họp mới</span>
+              <i class="fas fa-chalkboard-teacher"></i>
+              <span id="btn-create-text">Bắt đầu Lớp học mới</span>
             </button>
-            <p class="hub-hint">
-              <i class="fas fa-crown text-warning"></i> Bạn sẽ là <strong>Chủ phòng</strong>: Khi bạn thoát, lớp học sẽ tự động kết thúc an toàn.
+            <p class="hub-hint" id="hub-mode-hint">
+              <i class="fas fa-crown text-warning"></i> Chế độ <strong>Lớp học</strong>: Giáo viên là Chủ phòng, tự động giải tán lớp học khi bạn rời đi.
             </p>
           </div>
 
