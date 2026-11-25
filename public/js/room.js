@@ -84,6 +84,14 @@ async function joinCall() {
   // Khởi tạo camera + mic độ trễ cực thấp
   await initMedia();
 
+  // Áp dụng cài đặt tắt mic / tắt cam từ trang chủ nếu có
+  if (sessionStorage.getItem('meetflow-mute-mic') === 'true') {
+    toggleMute();
+  }
+  if (sessionStorage.getItem('meetflow-mute-cam') === 'true') {
+    toggleCamera();
+  }
+
   // Kết nối socket
   connectSocket();
 }
