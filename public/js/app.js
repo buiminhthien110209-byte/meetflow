@@ -12,6 +12,16 @@ let selectedRoomMode = 'classroom'; // 'classroom' | 'meeting' | 'interview'
 document.addEventListener('DOMContentLoaded', () => {
   initClock();
   setupEnterKeys();
+  checkAuthState();
+  
+  // Đóng dropdown tài khoản khi click ra ngoài
+  document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('user-pill-wrapper');
+    const dropdown = document.getElementById('user-dropdown-card');
+    if (dropdown && wrapper && !wrapper.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
 });
 
 // =========================================
@@ -365,4 +375,286 @@ function setupAudioMeter(stream) {
   } catch (err) {
     console.warn('Lỗi AudioContext VU meter:', err);
   }
+}
+
+// =========================================
+// XÁC THỰC TÀI KHOẢN GMAIL & MÃ OTP
+// =========================================
+let authPendingEmail = '';
+let authPendingName = '';
+
+// Kiểm tra trạng thái đăng nhập từ localStorage
+function checkAuthState() {
+  const userStr = localStorage.getItem('meetflow-user');
+  const loginBtn = document.getElementById('btn-login-nav');
+  const userPill = document.getElementById('user-pill-wrapper');
+  
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (userPill) userPill.style.display = 'block';
+
+      const avatarEl = document.getElementById('nav-user-avatar');
+      const nameEl = document.getElementById('nav-user-name');
+      const dropName = document.getElementById('dropdown-name');
+      const dropEmail = document.getElementById('dropdown-email');
+
+      const displayName = user.name || user.email.split('@')[0];
+      const initial = displayName.charAt(0).toUpperCase();
+
+      if (avatarEl) avatarEl.textContent = initial;
+      if (nameEl) nameEl.textContent = displayName;
+      if (dropName) dropName.textContent = displayName;
+      if (dropEmail) dropEmail.textContent = user.email;
+
+      // Điền sẵn tên vào các ô tạo và tham gia phòng
+      const createName = document.getElementById('create-name');
+      const joinName = document.getElementById('join-name');
+      if (createName && !createName.value.trim()) createName.value = displayName;
+      if (joinName && !joinName.value.trim()) joinName.value = displayName;
+
+      sessionStorage.setItem('meetflow-username', displayName);
+    } catch (e) {
+      console.warn('Lỗi phân tích thông tin user:', e);
+    }
+  } else {
+    if (loginBtn) loginBtn.style.display = 'inline-flex';
+    if (userPill) userPill.style.display = 'none';
+  }
+}
+
+// Mở modal đăng nhập
+function openAuthModal() {
+  const modal = document.getElementById('auth-modal');
+  if (!modal) return;
+
+  // Reset về bước 1
+  document.getElementById('auth-step-email').style.display = 'block';
+  document.getElementById('auth-step-otp').style.display = 'none';
+  
+  const errEmail = document.getElementById('auth-email-error');
+  const errOtp = document.getElementById('auth-otp-error');
+  if (errEmail) errEmail.style.display = 'none';
+  if (errOtp) errOtp.style.display = 'none';
+
+  modal.style.display = 'flex';
+  const nameInput = document.getElementById('auth-name-input');
+  if (nameInput) nameInput.focus();
+}
+
+// Đóng modal đăng nhập
+function closeAuthModal() {
+  const modal = document.getElementById('auth-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Bật/tắt dropdown tài khoản
+function toggleUserDropdown(e) {
+  if (e) e.stopPropagation();
+  const dropdown = document.getElementById('user-dropdown-card');
+  if (!dropdown) return;
+  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+}
+
+// Đăng xuất tài khoản
+function logoutUser() {
+  localStorage.removeItem('meetflow-user');
+  const dropdown = document.getElementById('user-dropdown-card');
+  if (dropdown) dropdown.style.display = 'none';
+  checkAuthState();
+  showAuthToast('Đã đăng xuất tài khoản.', 'info');
+}
+
+// Bước 1: Gửi mã OTP về Gmail
+async function handleSendOtp(e) {
+  if (e) e.preventDefault();
+  
+  const nameInput = document.getElementById('auth-name-input');
+  const emailInput = document.getElementById('auth-email-input');
+  const errEmail = document.getElementById('auth-email-error');
+  const btnSend = document.getElementById('btn-send-otp');
+
+  const name = nameInput ? nameInput.value.trim() : '';
+  const email = emailInput ? emailInput.value.trim().toLowerCase() : '';
+
+  if (errEmail) errEmail.style.display = 'none';
+
+  // Kiểm tra chỉ chấp nhận Gmail
+  if (!email.endsWith('@gmail.com')) {
+    if (errEmail) {
+      errEmail.textContent = 'Chỉ chấp nhận địa chỉ email kết thúc bằng @gmail.com';
+      errEmail.style.display = 'block';
+    }
+    emailInput.focus();
+    return;
+  }
+
+  btnSend.disabled = true;
+  btnSend.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gửi mã...';
+
+  try {
+    const res = await fetch('/api/auth/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Không thể gửi mã xác nhận.');
+    }
+
+    authPendingEmail = email;
+    authPendingName = name || email.split('@')[0];
+
+    // Chuyển sang bước 2
+    document.getElementById('auth-step-email').style.display = 'none';
+    document.getElementById('auth-step-otp').style.display = 'block';
+
+    const targetEmailEl = document.getElementById('auth-target-email');
+    if (targetEmailEl) targetEmailEl.textContent = email;
+
+    // Nếu môi trường chưa cấu hình SMTP, hiển thị mã gợi ý để kiểm thử mượt mà
+    const demoBox = document.getElementById('auth-demo-hint');
+    if (demoBox) {
+      if (data.demoCode) {
+        demoBox.innerHTML = `<i class="fas fa-key"></i> Mã xác nhận thử nghiệm của bạn: <strong>${data.demoCode}</strong>`;
+        demoBox.style.display = 'block';
+      } else {
+        demoBox.style.display = 'none';
+      }
+    }
+
+    const otpInput = document.getElementById('auth-otp-input');
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.focus();
+    }
+
+    showAuthToast('Đã gửi mã xác thực về Gmail!', 'success');
+  } catch (err) {
+    if (errEmail) {
+      errEmail.textContent = err.message || 'Lỗi gửi mã OTP.';
+      errEmail.style.display = 'block';
+    }
+  } finally {
+    btnSend.disabled = false;
+    btnSend.innerHTML = '<i class="fas fa-paper-plane"></i> <span>Gửi mã xác nhận qua Gmail</span>';
+  }
+}
+
+// Bước 2: Xác thực mã OTP
+async function handleVerifyOtp(e) {
+  if (e) e.preventDefault();
+
+  const otpInput = document.getElementById('auth-otp-input');
+  const errOtp = document.getElementById('auth-otp-error');
+  const btnVerify = document.getElementById('btn-verify-otp');
+
+  const code = otpInput ? otpInput.value.trim() : '';
+  if (errOtp) errOtp.style.display = 'none';
+
+  if (!code || code.length !== 6) {
+    if (errOtp) {
+      errOtp.textContent = 'Vui lòng nhập đủ 6 chữ số mã xác nhận.';
+      errOtp.style.display = 'block';
+    }
+    otpInput.focus();
+    return;
+  }
+
+  btnVerify.disabled = true;
+  btnVerify.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xác thực...';
+
+  try {
+    const res = await fetch('/api/auth/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: authPendingEmail,
+        code,
+        name: authPendingName
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || 'Mã xác nhận không chính xác.');
+    }
+
+    // Lưu thông tin người dùng vào LocalStorage
+    localStorage.setItem('meetflow-user', JSON.stringify(data.user));
+    closeAuthModal();
+    checkAuthState();
+    showAuthToast(`Xin chào ${data.user.name || 'bạn'}! Đăng nhập thành công.`, 'success');
+  } catch (err) {
+    if (errOtp) {
+      errOtp.textContent = err.message || 'Mã xác thực không hợp lệ hoặc đã hết hạn.';
+      errOtp.style.display = 'block';
+    }
+  } finally {
+    btnVerify.disabled = false;
+    btnVerify.innerHTML = '<i class="fas fa-check-circle"></i> <span>Xác nhận & Hoàn tất</span>';
+  }
+}
+
+// Gửi lại mã OTP
+async function resendOtp() {
+  if (!authPendingEmail) {
+    backToEmailStep();
+    return;
+  }
+  const emailInput = document.getElementById('auth-email-input');
+  const nameInput = document.getElementById('auth-name-input');
+  if (emailInput) emailInput.value = authPendingEmail;
+  if (nameInput) nameInput.value = authPendingName;
+  await handleSendOtp();
+}
+
+// Quay lại bước nhập email
+function backToEmailStep() {
+  document.getElementById('auth-step-otp').style.display = 'none';
+  document.getElementById('auth-step-email').style.display = 'block';
+  const emailInput = document.getElementById('auth-email-input');
+  if (emailInput) emailInput.focus();
+}
+
+// Hiển thị thông báo Toast nhẹ
+function showAuthToast(msg, type = 'info') {
+  let toast = document.getElementById('meetflow-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'meetflow-toast';
+    toast.style.position = 'fixed';
+    toast.style.bottom = '24px';
+    toast.style.right = '24px';
+    toast.style.padding = '12px 20px';
+    toast.style.borderRadius = '12px';
+    toast.style.color = '#fff';
+    toast.style.fontSize = '14px';
+    toast.style.fontWeight = '600';
+    toast.style.zIndex = '99999';
+    toast.style.boxShadow = '0 10px 25px -5px rgba(0,0,0,0.3)';
+    toast.style.transition = 'all 0.3s ease';
+    document.body.appendChild(toast);
+  }
+
+  if (type === 'success') {
+    toast.style.background = '#10b981';
+  } else if (type === 'error') {
+    toast.style.background = '#ef4444';
+  } else {
+    toast.style.background = '#3b82f6';
+  }
+
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+
+  clearTimeout(window.__toastTimeout);
+  window.__toastTimeout = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+  }, 3500);
 }
