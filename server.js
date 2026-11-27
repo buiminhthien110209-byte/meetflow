@@ -7,6 +7,22 @@ const path = require('path');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 
+// Đọc file .env nếu có (dành cho môi trường nội bộ)
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+  try {
+    const envContent = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [k, ...v] = trimmed.split('=');
+        if (k && v.length) {
+          process.env[k.trim()] = v.join('=').trim();
+        }
+      }
+    });
+  } catch (err) {}
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -56,15 +72,18 @@ const pendingOtps = new Map();
 
 // Cấu hình Nodemailer gửi Gmail
 let mailTransporter = null;
-if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+const gmailUser = (process.env.GMAIL_USER || '').trim();
+const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+
+if (gmailUser && gmailPass) {
   mailTransporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
+      user: gmailUser,
+      pass: gmailPass
     }
   });
-  console.log(`📧 Đã kích hoạt Gmail SMTP: ${process.env.GMAIL_USER}`);
+  console.log(`📧 Đã kích hoạt Gmail SMTP: ${gmailUser}`);
 } else {
   console.log('ℹ️ GMAIL_USER và GMAIL_APP_PASSWORD chưa được cấu hình. Hệ thống sẽ hiển thị mã OTP trực tiếp để thử nghiệm thuận tiện.');
 }
@@ -105,7 +124,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     if (mailTransporter) {
       try {
         await mailTransporter.sendMail({
-          from: `"MeetFlow" <${process.env.GMAIL_USER}>`,
+          from: `"MeetFlow" <${gmailUser}>`,
           to: cleanEmail,
           subject: `[MeetFlow] Mã xác nhận tạo tài khoản / đăng nhập: ${otpCode}`,
           html: `
