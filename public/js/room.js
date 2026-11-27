@@ -186,15 +186,18 @@ function connectSocket() {
       if (modeIcon) modeIcon.className = 'fas fa-graduation-cap';
       if (modeText) modeText.textContent = 'Lớp học';
       if (modeBadge) {
-        modeBadge.style.background = 'rgba(79, 70, 229, 0.1)';
-        modeBadge.style.color = '#4f46e5';
-        modeBadge.style.borderColor = 'rgba(79, 70, 229, 0.25)';
+        modeBadge.style.background = 'rgba(99, 102, 241, 0.18)';
+        modeBadge.style.color = '#a5b4fc';
+        modeBadge.style.borderColor = 'rgba(99, 102, 241, 0.35)';
       }
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
           roleText.textContent = 'Giáo viên';
           if (roleIcon) roleIcon.className = 'fas fa-chalkboard-user';
+          roleBadge.style.background = 'rgba(16, 185, 129, 0.18)';
+          roleBadge.style.color = '#6ee7b7';
+          roleBadge.style.borderColor = 'rgba(16, 185, 129, 0.35)';
         }
         document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Giáo viên)`;
         if (leaveBtn) leaveBtn.title = 'Kết thúc lớp học';
@@ -207,15 +210,18 @@ function connectSocket() {
       if (modeIcon) modeIcon.className = 'fas fa-users';
       if (modeText) modeText.textContent = 'Cuộc họp';
       if (modeBadge) {
-        modeBadge.style.background = 'rgba(2, 132, 199, 0.1)';
-        modeBadge.style.color = '#0284c7';
-        modeBadge.style.borderColor = 'rgba(2, 132, 199, 0.25)';
+        modeBadge.style.background = 'rgba(14, 165, 233, 0.18)';
+        modeBadge.style.color = '#7dd3fc';
+        modeBadge.style.borderColor = 'rgba(14, 165, 233, 0.35)';
       }
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
           roleText.textContent = 'Chủ phòng';
           if (roleIcon) roleIcon.className = 'fas fa-user-check';
+          roleBadge.style.background = 'rgba(16, 185, 129, 0.18)';
+          roleBadge.style.color = '#6ee7b7';
+          roleBadge.style.borderColor = 'rgba(16, 185, 129, 0.35)';
         }
         document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Chủ phòng)`;
         if (leaveBtn) leaveBtn.title = 'Rời hoặc kết thúc cuộc họp';
@@ -228,15 +234,18 @@ function connectSocket() {
       if (modeIcon) modeIcon.className = 'fas fa-user-tie';
       if (modeText) modeText.textContent = 'Phỏng vấn';
       if (modeBadge) {
-        modeBadge.style.background = 'rgba(217, 119, 6, 0.1)';
-        modeBadge.style.color = '#d97706';
-        modeBadge.style.borderColor = 'rgba(217, 119, 6, 0.25)';
+        modeBadge.style.background = 'rgba(245, 158, 11, 0.18)';
+        modeBadge.style.color = '#fcd34d';
+        modeBadge.style.borderColor = 'rgba(245, 158, 11, 0.35)';
       }
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
           roleText.textContent = 'Người phỏng vấn';
           if (roleIcon) roleIcon.className = 'fas fa-user-tie';
+          roleBadge.style.background = 'rgba(16, 185, 129, 0.18)';
+          roleBadge.style.color = '#6ee7b7';
+          roleBadge.style.borderColor = 'rgba(16, 185, 129, 0.35)';
         }
         document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Người phỏng vấn)`;
         if (leaveBtn) leaveBtn.title = 'Kết thúc phỏng vấn';
