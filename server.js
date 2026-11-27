@@ -159,13 +159,14 @@ app.post('/api/auth/send-otp', async (req, res) => {
           `
         });
 
-        // Giới hạn thời gian chờ gửi thư tối đa 5 giây để không bao giờ bị đơ/lag giao diện
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), 5000));
+        // Trên Render gói Free, các cổng SMTP (25, 465, 587) bị tường lửa chặn
+        // Giới hạn thời gian thử tối đa 2.5 giây để KHÔNG BAO GIỜ làm đơ/lag giao diện người dùng
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP timeout or blocked on free host')), 2500));
         await Promise.race([mailPromise, timeoutPromise]);
         mailSent = true;
         console.log(`✅ Đã gửi thư OTP thành công tới: ${cleanEmail}`);
       } catch (err) {
-        console.error('Lỗi hoặc timeout khi gửi mail qua Gmail SMTP:', err.message);
+        console.warn('⚠️ Render chặn cổng SMTP hoặc lỗi gửi mail:', err.message);
       }
     }
 

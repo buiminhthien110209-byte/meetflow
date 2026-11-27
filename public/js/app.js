@@ -153,7 +153,12 @@ async function createRoom() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ roomMode: selectedRoomMode })
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error('Máy chủ đang khởi động lại. Vui lòng thử lại sau vài giây!');
+    }
 
     // Lưu quyền chủ phòng
     sessionStorage.setItem('meetflow-username', name);
@@ -504,7 +509,12 @@ async function handleSendOtp(e) {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error('Máy chủ đang khởi động lại hoặc bảo trì. Vui lòng bấm thử lại sau vài giây!');
+    }
 
     if (!res.ok || !data.success) {
       throw new Error(data.message || 'Không thể gửi mã xác nhận.');
@@ -520,11 +530,17 @@ async function handleSendOtp(e) {
     const targetEmailEl = document.getElementById('auth-target-email');
     if (targetEmailEl) targetEmailEl.textContent = email;
 
-    // Nếu môi trường chưa cấu hình SMTP, hiển thị mã gợi ý để kiểm thử mượt mà
+    // Nếu có mã gợi ý (khi môi trường Render chặn SMTP), hiển thị mã để người dùng đăng nhập ngay lập tức
     const demoBox = document.getElementById('auth-demo-hint');
     if (demoBox) {
       if (data.demoCode) {
-        demoBox.innerHTML = `<i class="fas fa-key"></i> Mã xác nhận thử nghiệm của bạn: <strong>${data.demoCode}</strong>`;
+        demoBox.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <span><i class="fas fa-shield-halved"></i> Mã xác nhận của bạn: <strong style="font-size: 17px; letter-spacing: 2px;">${data.demoCode}</strong></span>
+            <button type="button" onclick="document.getElementById('auth-otp-input').value='${data.demoCode}'" style="background: rgba(255,255,255,0.25); border: none; padding: 4px 10px; border-radius: 6px; color: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Tự điền</button>
+          </div>
+          <small style="opacity: 0.85; font-weight: normal; margin-top: 4px; display: block;">Mã đã tạo an toàn, bạn có thể bấm "Tự điền" hoặc gõ 6 số để hoàn tất.</small>
+        `;
         demoBox.style.display = 'block';
       } else {
         demoBox.style.display = 'none';
@@ -587,7 +603,12 @@ async function handleVerifyOtp(e) {
         name: authPendingName
       })
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error('Máy chủ đang khởi động lại. Vui lòng thử lại sau vài giây!');
+    }
 
     if (!res.ok || !data.success) {
       throw new Error(data.message || 'Mã xác nhận không chính xác.');
