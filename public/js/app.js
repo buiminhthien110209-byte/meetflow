@@ -493,12 +493,17 @@ async function handleSendOtp(e) {
   btnSend.disabled = true;
   btnSend.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang gửi mã...';
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const res = await fetch('/api/auth/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name })
+      body: JSON.stringify({ email, name }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -534,8 +539,13 @@ async function handleSendOtp(e) {
 
     showAuthToast('Đã gửi mã xác thực về Gmail!', 'success');
   } catch (err) {
+    clearTimeout(timeoutId);
     if (errEmail) {
-      errEmail.textContent = err.message || 'Lỗi gửi mã OTP.';
+      if (err.name === 'AbortError') {
+        errEmail.textContent = 'Máy chủ đang khởi động lại hoặc kết nối mạng chậm. Vui lòng bấm thử lại sau 5 giây!';
+      } else {
+        errEmail.textContent = err.message || 'Lỗi gửi mã OTP.';
+      }
       errEmail.style.display = 'block';
     }
   } finally {

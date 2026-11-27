@@ -77,11 +77,16 @@ const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
 if (gmailUser && gmailPass) {
   mailTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // SSL port 465 kết nối ngay tức thì, tránh bị chặn cổng trên Cloud
     auth: {
       user: gmailUser,
       pass: gmailPass
-    }
+    },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 6000
   });
   console.log(`📧 Đã kích hoạt Gmail SMTP: ${gmailUser}`);
 } else {
@@ -123,7 +128,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
     let mailSent = false;
     if (mailTransporter) {
       try {
-        await mailTransporter.sendMail({
+        const mailPromise = mailTransporter.sendMail({
           from: `"MeetFlow" <${gmailUser}>`,
           to: cleanEmail,
           subject: `[MeetFlow] Mã xác nhận tạo tài khoản / đăng nhập: ${otpCode}`,
@@ -153,9 +158,14 @@ app.post('/api/auth/send-otp', async (req, res) => {
             </div>
           `
         });
+
+        // Giới hạn thời gian chờ gửi thư tối đa 5 giây để không bao giờ bị đơ/lag giao diện
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), 5000));
+        await Promise.race([mailPromise, timeoutPromise]);
         mailSent = true;
+        console.log(`✅ Đã gửi thư OTP thành công tới: ${cleanEmail}`);
       } catch (err) {
-        console.error('Lỗi gửi email thực tế qua Gmail SMTP:', err.message);
+        console.error('Lỗi hoặc timeout khi gửi mail qua Gmail SMTP:', err.message);
       }
     }
 
