@@ -184,7 +184,7 @@ function connectSocket() {
     if (currentRoomMode === 'classroom') {
       document.title = `MeetFlow — Lớp học: ${roomId}`;
       if (modeIcon) modeIcon.className = 'fas fa-graduation-cap';
-      if (modeText) modeText.textContent = 'Lớp học trực tuyến';
+      if (modeText) modeText.textContent = 'Lớp học';
       if (modeBadge) {
         modeBadge.style.background = 'rgba(79, 70, 229, 0.1)';
         modeBadge.style.color = '#4f46e5';
@@ -194,18 +194,18 @@ function connectSocket() {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
           roleText.textContent = 'Giáo viên';
-          if (roleIcon) roleIcon.className = 'fas fa-chalkboard-teacher';
+          if (roleIcon) roleIcon.className = 'fas fa-chalkboard-user';
         }
-        document.getElementById('local-name-tag').innerHTML = `👑 ${escapeHtml(username)} (Giáo viên)`;
-        if (leaveBtn) leaveBtn.title = 'Giải tán & Kết thúc lớp học';
-        showToast('👨‍🏫 Bạn là Giáo viên (Chủ phòng)');
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Giáo viên)`;
+        if (leaveBtn) leaveBtn.title = 'Kết thúc lớp học';
+        showToast('Bạn là Giáo viên (Chủ phòng)');
       } else {
-        document.getElementById('local-name-tag').innerHTML = `👩‍🎓 ${escapeHtml(username)} (Học viên)`;
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Học viên)`;
       }
     } else if (currentRoomMode === 'meeting') {
       document.title = `MeetFlow — Cuộc họp: ${roomId}`;
-      if (modeIcon) modeIcon.className = 'fas fa-users-rectangle';
-      if (modeText) modeText.textContent = 'Cuộc họp nhóm';
+      if (modeIcon) modeIcon.className = 'fas fa-users';
+      if (modeText) modeText.textContent = 'Cuộc họp';
       if (modeBadge) {
         modeBadge.style.background = 'rgba(2, 132, 199, 0.1)';
         modeBadge.style.color = '#0284c7';
@@ -214,19 +214,19 @@ function connectSocket() {
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
-          roleText.textContent = 'Người tổ chức';
-          if (roleIcon) roleIcon.className = 'fas fa-star';
+          roleText.textContent = 'Chủ phòng';
+          if (roleIcon) roleIcon.className = 'fas fa-user-check';
         }
-        document.getElementById('local-name-tag').innerHTML = `⭐ ${escapeHtml(username)} (Người tổ chức)`;
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Chủ phòng)`;
         if (leaveBtn) leaveBtn.title = 'Rời hoặc kết thúc cuộc họp';
-        showToast('⭐ Bạn là Người tổ chức cuộc họp');
+        showToast('Bạn là Chủ phòng');
       } else {
         document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Thành viên)`;
       }
     } else if (currentRoomMode === 'interview') {
       document.title = `MeetFlow — Phỏng vấn: ${roomId}`;
       if (modeIcon) modeIcon.className = 'fas fa-user-tie';
-      if (modeText) modeText.textContent = 'Phỏng vấn tuyển dụng';
+      if (modeText) modeText.textContent = 'Phỏng vấn';
       if (modeBadge) {
         modeBadge.style.background = 'rgba(217, 119, 6, 0.1)';
         modeBadge.style.color = '#d97706';
@@ -235,15 +235,15 @@ function connectSocket() {
       if (isHost) {
         if (roleBadge) {
           roleBadge.style.display = 'flex';
-          roleText.textContent = 'Nhà tuyển dụng';
-          if (roleIcon) roleIcon.className = 'fas fa-briefcase';
+          roleText.textContent = 'Người phỏng vấn';
+          if (roleIcon) roleIcon.className = 'fas fa-user-tie';
         }
-        document.getElementById('local-name-tag').innerHTML = `👔 ${escapeHtml(username)} (Nhà tuyển dụng)`;
-        if (leaveBtn) leaveBtn.title = 'Hoàn tất phỏng vấn & Đóng phòng';
-        showToast('👔 Bạn là Nhà tuyển dụng (Interviewer)');
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Người phỏng vấn)`;
+        if (leaveBtn) leaveBtn.title = 'Kết thúc phỏng vấn';
+        showToast('Bạn là Người phỏng vấn');
       } else {
-        document.getElementById('local-name-tag').innerHTML = `🎯 ${escapeHtml(username)} (Ứng viên)`;
-        showToast('🎯 Chế độ Phỏng vấn: Bạn là Ứng viên');
+        document.getElementById('local-name-tag').innerHTML = `${escapeHtml(username)} (Ứng viên)`;
+        showToast('Bạn là Ứng viên');
       }
     }
 
@@ -264,10 +264,10 @@ function connectSocket() {
 
   socket.on('user-joined', ({ userId, username: peerName, isHost: peerIsHost }) => {
     createPeerConnection(userId, peerName, peerIsHost, false);
-    addSystemMessage(`${peerIsHost ? '👑 Chủ phòng' : 'Thành viên'} ${peerName} đã tham gia`);
+    addSystemMessage(`${peerIsHost ? 'Chủ phòng' : 'Thành viên'} ${peerName} đã vào phòng`);
     updateParticipantCount();
     updateParticipantsList();
-    showToast(`👋 ${peerName} đã tham gia`);
+    showToast(`${peerName} đã vào phòng`);
   });
 
   socket.on('offer', async ({ from, offer, username: peerName }) => {
@@ -520,16 +520,16 @@ function createVideoElement(peerId, peerUsername, peerIsHost) {
   let peerLabel = escapeHtml(peerUsername);
   if (currentRoomMode === 'classroom') {
     peerLabel = peerIsHost
-      ? `👑 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#a78bfa;">(Giáo viên)</span>`
-      : `👩‍🎓 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#cbd5e1;">(Học viên)</span>`;
+      ? `${escapeHtml(peerUsername)} <span style="font-size:11px; color:#a78bfa;">(Giáo viên)</span>`
+      : `${escapeHtml(peerUsername)} <span style="font-size:11px; color:#cbd5e1;">(Học viên)</span>`;
   } else if (currentRoomMode === 'meeting') {
     peerLabel = peerIsHost
-      ? `⭐ ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#38bdf8;">(Người tổ chức)</span>`
+      ? `${escapeHtml(peerUsername)} <span style="font-size:11px; color:#38bdf8;">(Chủ phòng)</span>`
       : `${escapeHtml(peerUsername)}`;
   } else if (currentRoomMode === 'interview') {
     peerLabel = peerIsHost
-      ? `👔 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#fbbf24;">(Nhà tuyển dụng)</span>`
-      : `🎯 ${escapeHtml(peerUsername)} <span style="font-size:11px; color:#34d399;">(Ứng viên)</span>`;
+      ? `${escapeHtml(peerUsername)} <span style="font-size:11px; color:#fbbf24;">(Người phỏng vấn)</span>`
+      : `${escapeHtml(peerUsername)} <span style="font-size:11px; color:#34d399;">(Ứng viên)</span>`;
   }
 
   const nameTag = document.createElement('div');
@@ -1099,9 +1099,9 @@ function addChatMessage(name, msgIsHost, message, timestamp, isMe) {
 
   let senderLabel = isMe ? 'Bạn' : escapeHtml(name);
   if (msgIsHost) {
-    if (currentRoomMode === 'classroom') senderLabel += ' 👨‍🏫';
-    else if (currentRoomMode === 'interview') senderLabel += ' 👔';
-    else senderLabel += ' 👑';
+    if (currentRoomMode === 'classroom') senderLabel += ' (Giáo viên)';
+    else if (currentRoomMode === 'interview') senderLabel += ' (Người phỏng vấn)';
+    else senderLabel += ' (Chủ phòng)';
   }
 
   div.innerHTML = `

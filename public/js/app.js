@@ -45,20 +45,20 @@ function selectRoomMode(mode) {
   const nameInput = document.getElementById('create-name');
 
   if (mode === 'classroom') {
-    if (btnText) btnText.textContent = 'Bắt đầu Lớp học mới';
-    if (btnIcon) btnIcon.className = 'fas fa-chalkboard-teacher';
-    if (hintEl) hintEl.innerHTML = '<i class="fas fa-crown text-warning"></i> Chế độ <strong>Lớp học</strong>: Giáo viên là Chủ phòng, tự động giải tán lớp học khi bạn rời đi.';
-    if (nameInput) nameInput.placeholder = 'Nhập tên giáo viên / chủ lớp (vd: Thầy Long, Cô Mai...)';
+    if (btnText) btnText.textContent = 'Bắt đầu Lớp học';
+    if (btnIcon) btnIcon.className = 'fas fa-video';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-info-circle text-primary"></i> Chế độ <strong>Lớp học</strong>: Giáo viên làm Chủ phòng, tự động đóng phòng khi bạn rời đi.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên giáo viên / chủ phòng (ví dụ: Thầy Minh, Cô Mai...)';
   } else if (mode === 'meeting') {
-    if (btnText) btnText.textContent = 'Bắt đầu Cuộc họp nhóm';
-    if (btnIcon) btnIcon.className = 'fas fa-users';
-    if (hintEl) hintEl.innerHTML = '<i class="fas fa-users-rectangle text-primary"></i> Chế độ <strong>Cuộc họp</strong>: Thảo luận nhóm tự do, cuộc họp vẫn tiếp tục khi bạn rời đi.';
-    if (nameInput) nameInput.placeholder = 'Nhập tên của bạn (vd: Hoàng Minh, Trưởng nhóm...)';
+    if (btnText) btnText.textContent = 'Bắt đầu Cuộc họp';
+    if (btnIcon) btnIcon.className = 'fas fa-video';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-info-circle text-primary"></i> Chế độ <strong>Cuộc họp</strong>: Thảo luận tự do, cuộc họp vẫn tiếp tục khi bạn rời đi.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên của bạn (ví dụ: Hoàng Minh, Lan Anh...)';
   } else if (mode === 'interview') {
     if (btnText) btnText.textContent = 'Bắt đầu Phỏng vấn';
-    if (btnIcon) btnIcon.className = 'fas fa-user-tie';
-    if (hintEl) hintEl.innerHTML = '<i class="fas fa-briefcase text-warning"></i> Chế độ <strong>Phỏng vấn 1-1</strong>: Tối ưu Nhà tuyển dụng và Ứng viên với nhãn định danh chuyên nghiệp.';
-    if (nameInput) nameInput.placeholder = 'Nhập tên Người phỏng vấn / HR (vd: HR Lan, Tuấn Anh...)';
+    if (btnIcon) btnIcon.className = 'fas fa-video';
+    if (hintEl) hintEl.innerHTML = '<i class="fas fa-info-circle text-primary"></i> Chế độ <strong>Phỏng vấn</strong>: Dành cho Người phỏng vấn và Ứng viên xin việc.';
+    if (nameInput) nameInput.placeholder = 'Nhập tên người phỏng vấn (ví dụ: Chị Lan, Anh Tuấn...)';
   }
 }
 

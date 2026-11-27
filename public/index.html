@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetFlow — Nền Tảng Họp Video & Lớp Học Trực Tuyến Thế Hệ Mới</title>
+  <title>MeetFlow — Họp Trực Tuyến & Lớp Học Miễn Phí</title>
   
-  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -24,15 +24,14 @@
         <img src="/favicon.svg" alt="MeetFlow" class="brand-logo">
         <div class="brand-info">
           <span class="brand-title">MeetFlow</span>
-          <span class="brand-tag">LỚP HỌC & HỌP TRỰC TUYẾN</span>
+          <span class="brand-tag">HỌP & HỌC TRỰC TUYẾN</span>
         </div>
       </div>
 
       <nav class="nav-links">
         <a href="#features" class="nav-link"><i class="fas fa-layer-group"></i> Tính năng</a>
-        <a href="#classroom" class="nav-link"><i class="fas fa-graduation-cap"></i> Giải pháp lớp học</a>
         <a href="javascript:void(0)" onclick="openDeviceTester()" class="nav-link highlight">
-          <i class="fas fa-sliders-h"></i> Kiểm tra thiết bị
+          <i class="fas fa-sliders-h"></i> Thử Mic & Camera
         </a>
       </nav>
 
@@ -45,7 +44,7 @@
           <span id="clock-date">Đang tải...</span>
         </div>
         <!-- Status Indicator -->
-        <div class="system-status" title="Hệ thống máy chủ đám mây đang sẵn sàng">
+        <div class="system-status" title="Hệ thống máy chủ đang sẵn sàng">
           <span class="status-dot"></span>
           <span>Sẵn sàng</span>
         </div>
@@ -53,57 +52,54 @@
     </div>
   </header>
 
-  <!-- Hero Main Section (Split 2 Columns) -->
+  <!-- Hero Main Section (Centered Clean Layout) -->
   <main class="hero-section">
     <div class="hero-container">
       
-      <!-- Cột Trái: Giới thiệu & Hub tạo/vào phòng -->
       <div class="hero-left">
         <div class="hero-badge">
           <span class="badge-sparkle"><i class="fas fa-sparkles"></i></span>
-          <span>Nền tảng học ảo & họp trực tuyến P2P thế hệ mới</span>
+          <span>Họp video & Học trực tuyến miễn phí</span>
         </div>
 
         <h1 class="hero-heading">
-          Học tập & Hội họp<br>
-          <span class="gradient-text">Không Gián Đoạn</span>
+          Học Tập & Hội Họp<br>
+          <span class="gradient-text">Dễ Dàng & Nhanh Chóng</span>
         </h1>
 
         <p class="hero-desc">
-          MeetFlow kết nối âm thanh và hình ảnh độ trễ cực thấp, bảo mật ngang hàng và tích hợp cơ chế 
-          <strong>tự động giải tán lớp học thông minh</strong> khi giáo viên kết thúc buổi dạy.
+          Không cần đăng ký tài khoản hay cài đặt phần mềm. Tạo phòng trong 1 giây và gửi liên kết để mọi người vào họp ngay lập tức.
         </p>
 
         <!-- Interactive Action Hub (Tabs Tạo / Tham gia) -->
         <div class="action-hub">
           <div class="hub-tabs">
             <button class="hub-tab active" id="tab-btn-create" onclick="switchHubTab('create')">
-              <i class="fas fa-chalkboard-teacher"></i>
-              <span>Mở lớp / Tạo phòng</span>
+              <i class="fas fa-plus-circle"></i>
+              <span>Tạo phòng mới</span>
             </button>
             <button class="hub-tab" id="tab-btn-join" onclick="switchHubTab('join')">
-              <i class="fas fa-user-graduate"></i>
-              <span>Tham gia lớp học</span>
+              <i class="fas fa-right-to-bracket"></i>
+              <span>Vào phòng có sẵn</span>
             </button>
           </div>
 
           <!-- Tab Content: Tạo phòng mới -->
           <div class="hub-content active" id="tab-content-create">
-            <!-- Bộ chọn 3 chế độ cuộc họp chuyên dụng -->
+            <!-- Bộ chọn 3 loại phòng họp thông dụng -->
             <div class="room-mode-selector">
-              <label class="mode-label"><i class="fas fa-layer-group text-primary"></i> Chọn hình thức phòng họp:</label>
+              <label class="mode-label"><i class="fas fa-layer-group text-primary"></i> Chọn kiểu phòng họp:</label>
               <div class="mode-cards">
                 <!-- Chế độ 1: Lớp học -->
                 <div class="mode-card active" id="mode-classroom" onclick="selectRoomMode('classroom')">
                   <div class="mode-icon-wrapper icon-classroom">
-                    <i class="fas fa-graduation-cap"></i>
+                    <i class="fas fa-chalkboard-user"></i>
                   </div>
                   <div class="mode-info">
                     <div class="mode-header">
                       <span class="mode-title">Tạo Lớp học</span>
-                      <span class="mode-badge-tag tag-classroom">Giáo Dục</span>
                     </div>
-                    <span class="mode-desc">Giáo viên làm chủ phòng. Tự động giải tán lớp khi giáo viên rời phòng.</span>
+                    <span class="mode-desc">Giáo viên làm chủ phòng. Khi giáo viên thoát, buổi học sẽ tự động kết thúc.</span>
                   </div>
                   <div class="mode-check"><i class="fas fa-circle-check"></i></div>
                 </div>
@@ -111,14 +107,13 @@
                 <!-- Chế độ 2: Cuộc họp -->
                 <div class="mode-card" id="mode-meeting" onclick="selectRoomMode('meeting')">
                   <div class="mode-icon-wrapper icon-meeting">
-                    <i class="fas fa-users-rectangle"></i>
+                    <i class="fas fa-users"></i>
                   </div>
                   <div class="mode-info">
                     <div class="mode-header">
                       <span class="mode-title">Tạo Cuộc họp</span>
-                      <span class="mode-badge-tag tag-meeting">Doanh Nghiệp</span>
                     </div>
-                    <span class="mode-desc">Thảo luận nhóm tự do. Cuộc họp vẫn duy trì liên tục khi người tạo rời đi.</span>
+                    <span class="mode-desc">Thảo luận nhóm tự do. Người tạo rời đi thì cuộc họp vẫn tiếp tục bình thường.</span>
                   </div>
                   <div class="mode-check"><i class="far fa-circle"></i></div>
                 </div>
@@ -131,9 +126,8 @@
                   <div class="mode-info">
                     <div class="mode-header">
                       <span class="mode-title">Tạo Cuộc phỏng vấn</span>
-                      <span class="mode-badge-tag tag-interview">Tuyển Dụng</span>
                     </div>
-                    <span class="mode-desc">Tối ưu 1-1 chuyên sâu giữa Nhà tuyển dụng và Ứng viên.</span>
+                    <span class="mode-desc">Dành cho 2 người (Người phỏng vấn và Ứng viên xin việc).</span>
                   </div>
                   <div class="mode-check"><i class="far fa-circle"></i></div>
                 </div>
@@ -141,22 +135,22 @@
             </div>
 
             <div class="input-field-wrapper" style="margin-top: 18px;">
-              <i class="fas fa-user-edit input-icon"></i>
+              <i class="fas fa-user-pen input-icon"></i>
               <input 
                 type="text" 
                 id="create-name" 
-                placeholder="Nhập tên của bạn (vd: Thầy Long, Minh...)" 
+                placeholder="Nhập tên của bạn (ví dụ: Thầy Minh, Lan Anh...)" 
                 class="modern-input"
                 maxlength="30"
               >
             </div>
 
-            <!-- Pre-meeting settings toggle -->
+            <!-- Tùy chọn nhanh trước khi vào phòng -->
             <div class="quick-options">
               <label class="toggle-option">
                 <input type="checkbox" id="create-mute-mic">
                 <span class="toggle-box"></span>
-                <span><i class="fas fa-microphone-slash"></i> Tắt mic khi vào</span>
+                <span><i class="fas fa-microphone-slash"></i> Tắt micro khi vào</span>
               </label>
               <label class="toggle-option">
                 <input type="checkbox" id="create-mute-cam">
@@ -166,11 +160,11 @@
             </div>
 
             <button id="btn-create" class="btn-hero-primary" onclick="createRoom()">
-              <i class="fas fa-chalkboard-teacher"></i>
-              <span id="btn-create-text">Bắt đầu Lớp học mới</span>
+              <i class="fas fa-video"></i>
+              <span id="btn-create-text">Bắt đầu ngay</span>
             </button>
             <p class="hub-hint" id="hub-mode-hint">
-              <i class="fas fa-crown text-warning"></i> Chế độ <strong>Lớp học</strong>: Giáo viên là Chủ phòng, tự động giải tán lớp học khi bạn rời đi.
+              <i class="fas fa-info-circle text-primary"></i> Chế độ <strong>Lớp học</strong>: Giáo viên là Chủ phòng, tự động đóng phòng khi bạn rời đi.
             </p>
           </div>
 
@@ -181,7 +175,7 @@
               <input 
                 type="text" 
                 id="join-name" 
-                placeholder="Nhập họ và tên học viên" 
+                placeholder="Nhập tên của bạn" 
                 class="modern-input"
                 maxlength="30"
               >
@@ -192,7 +186,7 @@
               <input 
                 type="text" 
                 id="join-code" 
-                placeholder="Mã lớp học (ví dụ: a1b2c3d4)" 
+                placeholder="Nhập mã phòng hoặc dán link phòng (ví dụ: a1b2c3d4)" 
                 class="modern-input"
                 maxlength="16"
               >
@@ -202,7 +196,7 @@
               <label class="toggle-option">
                 <input type="checkbox" id="join-mute-mic">
                 <span class="toggle-box"></span>
-                <span><i class="fas fa-microphone-slash"></i> Tắt mic khi vào</span>
+                <span><i class="fas fa-microphone-slash"></i> Tắt micro khi vào</span>
               </label>
               <label class="toggle-option">
                 <input type="checkbox" id="join-mute-cam">
@@ -212,129 +206,42 @@
             </div>
 
             <button id="btn-join" class="btn-hero-secondary" onclick="joinRoom()">
-              <i class="fas fa-arrow-right-to-bracket"></i>
-              <span>Vào lớp ngay</span>
+              <i class="fas fa-right-to-bracket"></i>
+              <span>Vào phòng ngay</span>
             </button>
             <p class="hub-hint">
-              <i class="fas fa-info-circle text-primary"></i> Nhập mã phòng hoặc dán thẳng đường liên kết do thầy cô/bạn bè gửi.
+              <i class="fas fa-info-circle text-primary"></i> Nhập mã phòng hoặc dán đường link do người tạo phòng gửi cho bạn.
             </p>
           </div>
         </div>
 
-        <!-- Trust Badges -->
-        <div class="hero-trust-bar">
-          <div class="trust-item">
-            <i class="fas fa-shield-halved"></i>
-            <span>Mã hóa P2P riêng tư</span>
-          </div>
-          <div class="trust-item">
-            <i class="fas fa-bolt"></i>
-            <span>Độ trễ &lt; 30ms</span>
-          </div>
-          <div class="trust-item">
-            <i class="fas fa-infinity"></i>
-            <span>Không giới hạn thời gian</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Cột Phải: Mockup Lớp Học Sống Động & Kiểm tra Thiết Bị -->
-      <div class="hero-right">
-        <div class="showcase-window">
-          <!-- Window Header -->
-          <div class="window-header">
-            <div class="window-dots">
-              <span class="dot dot-red"></span>
-              <span class="dot dot-yellow"></span>
-              <span class="dot dot-green"></span>
-            </div>
-            <div class="window-title">
-              <i class="fas fa-lock"></i>
-              <span>MeetFlow Virtual Classroom • #demo-live</span>
-            </div>
-            <div class="window-badge">
-              <span class="live-record-dot"></span>
-              <span>LIVE</span>
-            </div>
-          </div>
-
-          <!-- Video Grid Mockup -->
-          <div class="mockup-grid">
-            <!-- Ô 1: Giáo viên (Chủ phòng) -->
-            <div class="mockup-card teacher">
-              <div class="mockup-video-bg teacher-bg">
-                <div class="teacher-avatar">👨‍🏫</div>
-              </div>
-              <div class="mockup-tag">
-                <span class="tag-role"><i class="fas fa-crown"></i> Thầy Minh (Chủ phòng)</span>
-                <span class="audio-wave">
-                  <span></span><span></span><span></span>
-                </span>
-              </div>
-            </div>
-
-            <!-- Ô 2: Màn hình trình chiếu Slide / Code -->
-            <div class="mockup-card screen-share">
-              <div class="screen-preview">
-                <div class="screen-code-header">
-                  <i class="fas fa-laptop-code"></i> Slide Bài Giảng: Lập Trình Python & AI
-                </div>
-                <div class="screen-code-body">
-                  <span class="code-line"><span class="code-kw">import</span> meetflow_ai</span>
-                  <span class="code-line"><span class="code-fn">classroom</span> = meetflow.create_room()</span>
-                  <span class="code-line text-success"># Đang trình chiếu thời gian thực 60fps</span>
-                </div>
-              </div>
-              <div class="mockup-tag">
-                <span><i class="fas fa-desktop"></i> Màn hình chia sẻ</span>
-              </div>
-            </div>
-
-            <!-- Ô 3: Học sinh A -->
-            <div class="mockup-card student">
-              <div class="mockup-video-bg student-1">
-                <div class="student-avatar">👩‍🎓</div>
-              </div>
-              <div class="mockup-tag">
-                <span>Lan Anh (Học viên)</span>
-                <span class="hand-raised" title="Đang giơ tay phát biểu">✋</span>
-              </div>
-            </div>
-
-            <!-- Ô 4: Học sinh B -->
-            <div class="mockup-card student">
-              <div class="mockup-video-bg student-2">
-                <div class="student-avatar">👨‍💻</div>
-              </div>
-              <div class="mockup-tag">
-                <span>Quốc Bảo</span>
-                <i class="fas fa-microphone text-success"></i>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mockup Bottom Bar -->
-          <div class="mockup-controls">
-            <div class="mockup-btn active"><i class="fas fa-microphone"></i></div>
-            <div class="mockup-btn active"><i class="fas fa-video"></i></div>
-            <div class="mockup-btn sharing"><i class="fas fa-desktop"></i></div>
-            <div class="mockup-btn"><i class="fas fa-hand"></i></div>
-            <div class="mockup-btn"><i class="fas fa-comments"></i></div>
-            <div class="mockup-btn leave"><i class="fas fa-phone-slash"></i></div>
-          </div>
-        </div>
-
-        <!-- Quick Device Checker Card -->
+        <!-- Thẻ Thử Micro & Camera trước khi vào -->
         <div class="device-test-card" onclick="openDeviceTester()">
           <div class="test-icon">
-            <i class="fas fa-camera-retro"></i>
+            <i class="fas fa-camera"></i>
           </div>
           <div class="test-text">
-            <h4>Kiểm tra Camera & Microphone của bạn</h4>
-            <p>Xem trước hình ảnh và thử micro trước khi tham gia lớp học</p>
+            <h4>Thử trước Micro & Camera của bạn</h4>
+            <p>Kiểm tra hình ảnh và giọng nói để đảm bảo thiết bị hoạt động tốt trước khi vào phòng</p>
           </div>
           <div class="test-arrow">
             <i class="fas fa-arrow-right"></i>
+          </div>
+        </div>
+
+        <!-- Thanh thông tin bảo đảm -->
+        <div class="hero-trust-bar">
+          <div class="trust-item">
+            <i class="fas fa-shield-halved"></i>
+            <span>Bảo mật & Riêng tư</span>
+          </div>
+          <div class="trust-item">
+            <i class="fas fa-bolt"></i>
+            <span>Hình ảnh mượt mà, không giật lag</span>
+          </div>
+          <div class="trust-item">
+            <i class="fas fa-infinity"></i>
+            <span>Không giới hạn thời gian gọi</span>
           </div>
         </div>
       </div>
@@ -345,56 +252,56 @@
   <!-- Features Highlights Section -->
   <section class="features-section" id="features">
     <div class="section-container">
-      <div class="section-badge">ƯU ĐIỂM VƯỢT TRỘI</div>
-      <h2 class="section-title">Được thiết kế tối ưu cho Giáo Dục & Hội Họp</h2>
-      <p class="section-subtitle">Loại bỏ hoàn toàn rào cản tài khoản phức tạp. Bấm vào là dùng ngay.</p>
+      <div class="section-badge">TÍNH NĂNG NỔI BẬT</div>
+      <h2 class="section-title">Đơn giản, dễ dùng cho mọi người</h2>
+      <p class="section-subtitle">Không cần đăng ký tài khoản. Bấm là vào họp ngay lập tức.</p>
 
       <div class="features-grid">
         <!-- Feature 1 -->
         <div class="feature-card">
           <div class="feature-icon-box gradient-purple">
-            <i class="fas fa-crown"></i>
+            <i class="fas fa-shield-check"></i>
           </div>
-          <h3>Quản lý lớp học thông minh</h3>
+          <h3>Quản lý phòng thông minh</h3>
           <p>
-            Giáo viên giữ toàn quyền làm chủ lớp. Khi giáo viên chọn kết thúc hoặc thoát buổi dạy, 
-            toàn bộ phòng học sẽ tự động giải tán và học sinh được đưa ra ngoài an toàn.
+            Giáo viên giữ toàn quyền làm chủ lớp. Khi giáo viên kết thúc buổi dạy, 
+            toàn bộ phòng học sẽ tự động đóng và học sinh được đưa ra ngoài an toàn.
           </p>
         </div>
 
         <!-- Feature 2 -->
         <div class="feature-card">
           <div class="feature-icon-box gradient-blue">
-            <i class="fas fa-microchip"></i>
+            <i class="fas fa-gauge-high"></i>
           </div>
-          <h3>Công nghệ H.264 phần cứng</h3>
+          <h3>Tối ưu nhẹ máy, không nóng</h3>
           <p>
-            Tận dụng trực tiếp chip đồ họa GPU để mã hóa video siêu nhẹ. Máy tính và điện thoại 
-            không bị nóng, quạt không kêu to, tiết kiệm pin tối đa khi học nhiều giờ liền.
+            Hình ảnh và âm thanh truyền trực tiếp mượt mà, máy tính và điện thoại 
+            không bị nóng, quạt không kêu to, tiết kiệm pin khi học và họp lâu.
           </p>
         </div>
 
         <!-- Feature 3 -->
         <div class="feature-card">
           <div class="feature-icon-box gradient-cyan">
-            <i class="fas fa-chalkboard"></i>
+            <i class="fas fa-desktop"></i>
           </div>
-          <h3>Trình chiếu bài giảng sắc nét</h3>
+          <h3>Chia sẻ màn hình rõ nét</h3>
           <p>
-            Chia sẻ màn hình tài liệu, slide PowerPoint, trình duyệt web và file PDF ở chế độ chuyên dụng 
-            đảm bảo từng dòng chữ đều rõ ràng, không bị mờ nhòe.
+            Dễ dàng trình chiếu tài liệu, bài giảng PowerPoint, trình duyệt web và file PDF 
+            đảm bảo hình ảnh rõ ràng cho tất cả mọi người cùng xem.
           </p>
         </div>
 
         <!-- Feature 4 -->
         <div class="feature-card">
           <div class="feature-icon-box gradient-green">
-            <i class="fas fa-shield-heart"></i>
+            <i class="fas fa-lock"></i>
           </div>
-          <h3>Bảo mật P2P không lưu vết</h3>
+          <h3>Bảo mật & Riêng tư</h3>
           <p>
-            Dữ liệu video và âm thanh truyền trực tiếp giữa các người dùng với nhau (Peer-to-Peer), 
-            máy chủ không lưu lại hình ảnh cá nhân, bảo đảm quyền riêng tư tuyệt đối.
+            Dữ liệu truyền trực tiếp giữa các người dùng với nhau, 
+            máy chủ không lưu lại hình ảnh hay video của bạn.
           </p>
         </div>
       </div>
@@ -407,7 +314,7 @@
       <div class="modal-header">
         <div class="modal-title-group">
           <i class="fas fa-sliders-h text-primary"></i>
-          <h3>Kiểm tra Camera & Microphone</h3>
+          <h3>Thử Micro & Camera</h3>
         </div>
         <button class="btn-close-modal" onclick="closeDeviceTester()">
           <i class="fas fa-times"></i>
@@ -419,7 +326,7 @@
           <video id="test-video" autoplay muted playsinline></video>
           <div class="device-no-cam" id="test-no-cam" style="display: none;">
             <i class="fas fa-video-slash"></i>
-            <p>Camera chưa được bật hoặc không có quyền</p>
+            <p>Camera chưa được bật hoặc chưa cấp quyền</p>
           </div>
           <!-- Audio Level Meter -->
           <div class="audio-meter-container">
@@ -433,11 +340,11 @@
 
         <div class="device-selectors">
           <div class="device-select-row">
-            <label><i class="fas fa-camera"></i> Camera:</label>
+            <label><i class="fas fa-camera"></i> Chọn Camera:</label>
             <select id="camera-select" class="modern-select" onchange="changeDevice()"></select>
           </div>
           <div class="device-select-row">
-            <label><i class="fas fa-microphone"></i> Microphone:</label>
+            <label><i class="fas fa-microphone"></i> Chọn Micro:</label>
             <select id="mic-select" class="modern-select" onchange="changeDevice()"></select>
           </div>
         </div>
@@ -445,13 +352,13 @@
 
       <div class="modal-footer">
         <button class="btn-modal-done" onclick="closeDeviceTester()">
-          <i class="fas fa-check"></i> Hoàn tất kiểm tra
+          <i class="fas fa-check"></i> Xong, quay lại trang chủ
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Professional Footer -->
+  <!-- Footer -->
   <footer class="pro-footer">
     <div class="footer-container">
       <div class="footer-col brand">
@@ -459,33 +366,32 @@
           <img src="/favicon.svg" alt="MeetFlow" class="brand-logo">
           <span class="brand-title">MeetFlow</span>
         </div>
-        <p>Nền tảng họp trực tuyến & lớp học ảo thời gian thực thế hệ mới. Đơn giản, tin cậy và hoàn toàn miễn phí.</p>
-        <div class="footer-copy">© 2026 MeetFlow Platform. Bản quyền thuộc về đội ngũ phát triển.</div>
+        <p>Nền tảng họp trực tuyến & học online miễn phí. Đơn giản, tin cậy và không cần tạo tài khoản.</p>
+        <div class="footer-copy">© 2026 MeetFlow. Nền tảng video trực tuyến miễn phí.</div>
       </div>
 
       <div class="footer-col">
         <h4>Tính năng</h4>
-        <a href="#features">Phòng học thông minh</a>
-        <a href="#features">Chia sẻ màn hình 60fps</a>
-        <a href="#features">Hộp thoại tin nhắn</a>
-        <a href="#features">Chủ phòng giải tán lớp</a>
+        <a href="#features">Phòng học trực tuyến</a>
+        <a href="#features">Chia sẻ màn hình</a>
+        <a href="#features">Nhắn tin trong phòng</a>
+        <a href="#features">Tự động kết thúc lớp</a>
       </div>
 
       <div class="footer-col">
-        <h4>Công nghệ</h4>
-        <a href="javascript:void(0)">WebRTC Peer-to-Peer</a>
-        <a href="javascript:void(0)">Codec H.264 Hardware</a>
-        <a href="javascript:void(0)">Socket.IO Signaling</a>
-        <a href="javascript:void(0)">Cloudflare & Google STUN</a>
+        <h4>Trợ giúp</h4>
+        <a href="javascript:void(0)" onclick="openDeviceTester()">Thử Mic & Camera</a>
+        <a href="#features">Hướng dẫn sử dụng</a>
+        <a href="javascript:void(0)">Bảo mật & Quyền riêng tư</a>
       </div>
 
       <div class="footer-col">
         <h4>Trạng thái</h4>
         <div class="server-badge">
           <span class="status-dot"></span>
-          <span>Máy chủ: Singapore Edge</span>
+          <span>Máy chủ: Hoạt động bình thường</span>
         </div>
-        <p class="text-muted" style="margin-top: 10px; font-size: 13px;">Phiên bản: v2.4.0 (Ultra Low Latency)</p>
+        <p class="text-muted" style="margin-top: 10px; font-size: 13px;">Phiên bản: v2.5.0</p>
       </div>
     </div>
   </footer>
